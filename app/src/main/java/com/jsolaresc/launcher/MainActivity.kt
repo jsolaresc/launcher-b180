@@ -94,10 +94,18 @@ class MainActivity : Activity() {
             if (!music.hasAccess()) requestAccess() else music.previous()
         }
         playButton.setOnClickListener {
-            when {
-                !music.hasAccess() -> requestAccess()
-                // Sin sesión de música: la fuente BT está apagada. Abrir Bluetooth la activa.
-                !music.playPause() -> Dock.open(this, Dock.MUSIC, getString(R.string.label_music))
+            if (!music.hasAccess()) {
+                requestAccess()
+                return@setOnClickListener
+            }
+            when (music.playPause()) {
+                Music.PlayResult.DONE -> {}
+                Music.PlayResult.NEEDS_SOURCE -> activateBtSource()
+                // Si el estéreo no tenía la fuente BT activa, el celular arranca y se
+                // vuelve a pausar: en ese caso, activarla.
+                Music.PlayResult.VERIFY -> handler.postDelayed({
+                    if (!music.isPlaying) activateBtSource()
+                }, 1500)
             }
         }
         findViewById<View>(R.id.btn_next).setOnClickListener {
@@ -116,6 +124,34 @@ class MainActivity : Activity() {
         })
         findViewById<View>(R.id.vol_down).setOnClickListener { stepVolume(AudioManager.ADJUST_LOWER) }
         findViewById<View>(R.id.vol_up).setOnClickListener { stepVolume(AudioManager.ADJUST_RAISE) }
+    }
+
+    /**
+     * La pantalla de música BT del estéreo, al abrirse, cambia el audio a la
+     * fuente Bluetooth y da Play (com.ts.bt.BtMusicActivity.onResume). La
+     * abrimos un instante y volvemos al launcher.
+     */
+    private fun activateBtSource() {
+        try {
+            startActivity(
+                Intent(Intent.ACTION_MAIN)
+                    .setComponent(Dock.BT_MUSIC)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            )
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        handler.postDelayed({
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                            Intent.FLAG_ACTIVITY_NO_ANIMATION
+                    )
+            )
+        }, 1200)
     }
 
     private fun requestAccess() {

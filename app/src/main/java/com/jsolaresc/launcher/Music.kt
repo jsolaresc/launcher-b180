@@ -109,12 +109,27 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
             else -> "estado ${controller?.playbackState?.state}"
         }
 
-    /** Devuelve false si no hay sesión a la que hablarle. */
-    fun playPause(): Boolean {
-        val c = controller ?: return false
-        if (isPlaying) c.transportControls.pause() else c.transportControls.play()
-        return true
+    /**
+     * Qué hacer al tocar Play/Pausa:
+     * - sonando: pausa directo;
+     * - en pausa con la fuente BT activa: play directo;
+     * - detenida, sin sesión o con otra fuente activa: hay que activar la fuente BT.
+     * Devuelve true si hace falta activar la fuente (o verificar que arrancó).
+     */
+    fun playPause(): PlayResult {
+        val c = controller ?: return PlayResult.NEEDS_SOURCE
+        if (isPlaying) {
+            c.transportControls.pause()
+            return PlayResult.DONE
+        }
+        if (c.playbackState?.state == PlaybackState.STATE_PAUSED) {
+            c.transportControls.play()
+            return PlayResult.VERIFY
+        }
+        return PlayResult.NEEDS_SOURCE
     }
+
+    enum class PlayResult { DONE, VERIFY, NEEDS_SOURCE }
 
     fun next() = controller?.transportControls?.skipToNext()
     fun previous() = controller?.transportControls?.skipToPrevious()

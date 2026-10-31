@@ -14,13 +14,19 @@ import android.widget.Toast
  */
 object Dock {
     const val MAPS = "maps"
-    const val MUSIC = "music"
+    // Claves nuevas: las de la 0.1.x guardaban la app "Bluetooth" genérica.
+    const val MUSIC = "music_bt"
     const val PHONE = "phone"
-    const val RADIO = "radio"
+    const val RADIO = "radio_ts"
     const val SETTINGS = "settings"
 
     private const val PREFS = "dock"
     private const val MAPS_PACKAGE = "com.google.android.apps.maps"
+
+    // Pantallas del fabricante (com.ts.MainUI), confirmadas en su APK.
+    private const val TS_PACKAGE = "com.ts.MainUI"
+    val BT_MUSIC = ComponentName(TS_PACKAGE, "com.ts.bt.BtMusicActivity")
+    private val RADIO_SCREEN = ComponentName(TS_PACKAGE, "com.ts.main.radio.RadioMainActivity")
 
     fun saved(ctx: Context, key: String): ComponentName? =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -37,6 +43,8 @@ object Dock {
     private fun defaultIntent(ctx: Context, key: String): Intent? = when (key) {
         MAPS -> ctx.packageManager.getLaunchIntentForPackage(MAPS_PACKAGE)
         SETTINGS -> Intent(Settings.ACTION_SETTINGS)
+        MUSIC -> Intent(Intent.ACTION_MAIN).setComponent(BT_MUSIC)
+        RADIO -> Intent(Intent.ACTION_MAIN).setComponent(RADIO_SCREEN)
         else -> null
     }
 
