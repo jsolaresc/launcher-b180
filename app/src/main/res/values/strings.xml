@@ -32,6 +32,7 @@
     <string name="vol_up">Subir volumen</string>
 
     <string name="apps_title">Apps</string>
+    <string name="home_label">Inicio: %1$s</string>
     <string name="pick_title">Elegí la app para %1$s</string>
     <string name="close">Cerrar</string>
     <string name="open_failed">No pude abrir esa app</string>

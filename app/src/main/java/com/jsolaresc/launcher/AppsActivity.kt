@@ -65,8 +65,7 @@ class AppsActivity : Activity() {
 
     private fun loadApps(): List<AppEntry> {
         val pm = packageManager
-        val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return pm.queryIntentActivities(query, 0)
+        val apps = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
             .filter { it.activityInfo.packageName != packageName }
             .map {
                 AppEntry(
@@ -75,7 +74,23 @@ class AppsActivity : Activity() {
                     icon = it.loadIcon(pm)
                 )
             }
-            .sortedBy { it.label.lowercase() }
+        val known = apps.map { it.component }.toSet()
+
+        // Las otras pantallas de inicio (la original del estéreo, Dashline…), por si
+        // hace falta volver a una. Muchas no aparecen como app común.
+        val homes = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
+            .filter { it.activityInfo.packageName != packageName }
+            .map { ComponentName(it.activityInfo.packageName, it.activityInfo.name) to it }
+            .filter { (component, _) -> component !in known }
+            .map { (component, info) ->
+                AppEntry(
+                    label = getString(R.string.home_label, info.loadLabel(pm).toString()),
+                    component = component,
+                    icon = info.loadIcon(pm)
+                )
+            }
+
+        return (apps + homes).sortedBy { it.label.lowercase() }
     }
 
     private fun launch(component: ComponentName) {
