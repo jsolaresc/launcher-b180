@@ -19,6 +19,10 @@
     <string name="play_pause">Reproducir o pausar</string>
     <string name="next">Canción siguiente</string>
 
+    <string name="volume">Volumen</string>
+    <string name="vol_down">Bajar volumen</string>
+    <string name="vol_up">Subir volumen</string>
+
     <string name="apps_title">Apps</string>
     <string name="pick_title">Elegí la app para %1$s</string>
     <string name="close">Cerrar</string>
