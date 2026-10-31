@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.Manifest
 import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
@@ -12,6 +13,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -37,6 +39,11 @@ class MainActivity : Activity() {
     private lateinit var trackTitle: TextView
     private lateinit var trackArtist: TextView
     private lateinit var musicSource: TextView
+    private lateinit var navMap: NavMap
+    private lateinit var navBanner: View
+    private lateinit var navIcon: ImageView
+    private lateinit var navTitle: TextView
+    private lateinit var navText: TextView
 
     // Mantiene la barra al día si el volumen cambia con la perilla o el volante.
     private val volumeReceiver = object : BroadcastReceiver() {
@@ -56,7 +63,24 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NavMap.configure(this)
         setContentView(R.layout.activity_main)
+
+        val mapPanel = findViewById<View>(R.id.map_panel)
+        mapPanel.clipToOutline = true
+        navMap = NavMap(this, mapPanel)
+        navBanner = findViewById(R.id.nav_banner)
+        navIcon = findViewById(R.id.nav_icon)
+        navTitle = findViewById(R.id.nav_title)
+        navText = findViewById(R.id.nav_text)
+        navBanner.setOnClickListener { Dock.open(this, Dock.MAPS, getString(R.string.label_maps)) }
+        findViewById<View>(R.id.btn_open_maps).setOnClickListener {
+            Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
+        }
+        findViewById<View>(R.id.map_status).setOnClickListener {
+            if (!navMap.hasPermission()) requestLocation()
+        }
+        if (!navMap.hasPermission()) requestLocation()
 
         clock = findViewById(R.id.clock)
         date = findViewById(R.id.date)
@@ -70,9 +94,6 @@ class MainActivity : Activity() {
 
         findViewById<View>(R.id.dock_apps).setOnClickListener {
             startActivity(Intent(this, AppsActivity::class.java))
-        }
-        findViewById<View>(R.id.map_panel).setOnClickListener {
-            Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
         }
         playButton = findViewById(R.id.btn_play)
         trackTitle = findViewById(R.id.track_title)
@@ -154,6 +175,41 @@ class MainActivity : Activity() {
         }, 1200)
     }
 
+    private fun requestLocation() {
+        requestPermissions(
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            1
+        )
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        navMap.stop()
+        navMap.start()
+    }
+
+    private fun renderNav() {
+        val info = Nav.current
+        if (info == null) {
+            navBanner.visibility = View.GONE
+            return
+        }
+        navBanner.visibility = View.VISIBLE
+        navTitle.text = info.title ?: info.text
+        val detail = listOfNotNull(
+            info.text.takeIf { info.title != null },
+            info.sub
+        ).filter { it.isNotBlank() }.joinToString(" · ")
+        navText.text = detail
+        navText.visibility = if (detail.isEmpty()) View.GONE else View.VISIBLE
+        if (info.icon != null) {
+            navIcon.setImageBitmap(info.icon)
+            navIcon.visibility = View.VISIBLE
+        } else {
+            navIcon.visibility = View.GONE
+        }
+    }
+
     private fun requestAccess() {
         Toast.makeText(this, R.string.grant_access, Toast.LENGTH_LONG).show()
         try {
@@ -211,6 +267,9 @@ class MainActivity : Activity() {
         handler.post(tick)
         refreshVolume()
         music.start()
+        navMap.start()
+        Nav.listener = { runOnUiThread { renderNav() } }
+        renderNav()
         registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"))
     }
 
@@ -218,6 +277,8 @@ class MainActivity : Activity() {
         handler.removeCallbacks(tick)
         unregisterReceiver(volumeReceiver)
         music.stop()
+        navMap.stop()
+        Nav.listener = null
         super.onPause()
     }
 

@@ -54,3 +54,8 @@ android {
         checkReleaseBuilds = false
     }
 }
+
+dependencies {
+    // Mapa liviano de teselas (raster): anda bien en la GPU Mali-450 y guarda caché para usar sin señal.
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+}

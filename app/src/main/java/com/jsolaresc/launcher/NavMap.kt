@@ -1,0 +1,224 @@
+package com.jsolaresc.launcher
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Point
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.View
+import android.widget.TextView
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.XYTileSource
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
+import org.osmdroid.views.overlay.Overlay
+import java.io.File
+import kotlin.math.roundToInt
+
+/**
+ * Mapa propio: posición y rumbo por GPS, velocidad y seguimiento.
+ * Usa teselas oscuras de CARTO (datos de OpenStreetMap). Lo que ya se vio queda
+ * guardado en el estéreo, así que esas zonas se ven también sin señal.
+ */
+class NavMap(private val activity: Activity, root: View) : LocationListener {
+
+    companion object {
+        private val BUENOS_AIRES = GeoPoint(-34.6037, -58.3816)
+        private const val FOLLOW_ZOOM = 17.0
+
+        private val DARK_TILES = XYTileSource(
+            "CartoDarkMatter", 0, 19, 256, ".png",
+            arrayOf(
+                "https://a.basemaps.cartocdn.com/dark_all/",
+                "https://b.basemaps.cartocdn.com/dark_all/",
+                "https://c.basemaps.cartocdn.com/dark_all/",
+                "https://d.basemaps.cartocdn.com/dark_all/"
+            ),
+            "© OpenStreetMap · © CARTO"
+        )
+
+        /** Debe llamarse antes de inflar el layout que contiene el MapView. */
+        fun configure(ctx: Context) {
+            val base = File(ctx.filesDir, "osmdroid")
+            Configuration.getInstance().apply {
+                userAgentValue = ctx.packageName
+                osmdroidBasePath = base
+                osmdroidTileCache = File(base, "tiles")
+                // Hasta ~600 MB de mapa guardado; al pasarse, borra lo más viejo.
+                tileFileSystemCacheMaxBytes = 600L * 1024 * 1024
+                tileFileSystemCacheTrimBytes = 500L * 1024 * 1024
+                cacheMapTileCount = 12
+                tileDownloadThreads = 2
+            }
+        }
+    }
+
+    private val map: MapView = root.findViewById(R.id.map)
+    private val speedText: TextView = root.findViewById(R.id.speed)
+    private val statusText: TextView = root.findViewById(R.id.map_status)
+    private val recenter: View = root.findViewById(R.id.btn_recenter)
+    private val locationManager = activity.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    private val me = MeOverlay()
+
+    private var follow = true
+    private var lastFix: Location? = null
+    private var running = false
+
+    init {
+        map.setTileSource(DARK_TILES)
+        map.setMultiTouchControls(true)
+        map.zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
+        map.isTilesScaledToDpi = true
+        map.minZoomLevel = 4.0
+        map.maxZoomLevel = 19.0
+        map.controller.setZoom(FOLLOW_ZOOM)
+        map.controller.setCenter(BUENOS_AIRES)
+
+        val copyright = CopyrightOverlay(activity)
+        copyright.setTextColor(Color.parseColor("#8A93A0"))
+        copyright.setTextSize(9)
+        map.overlays.add(copyright)
+        map.overlays.add(me)
+
+        // Si movés el mapa con el dedo, deja de seguirte hasta que toques "centrar".
+        map.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_MOVE && follow) {
+                follow = false
+                recenter.visibility = View.VISIBLE
+            }
+            false
+        }
+        recenter.setOnClickListener {
+            follow = true
+            recenter.visibility = View.GONE
+            map.controller.setZoom(FOLLOW_ZOOM)
+            lastFix?.let { map.controller.animateTo(GeoPoint(it.latitude, it.longitude)) }
+        }
+    }
+
+    fun hasPermission() =
+        activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    @SuppressLint("MissingPermission")
+    fun start() {
+        map.onResume()
+        if (!hasPermission()) {
+            showStatus(activity.getString(R.string.gps_no_permission))
+            return
+        }
+        if (running) return
+        running = true
+        val gpsOn = try {
+            locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        } catch (e: Exception) {
+            false
+        }
+        try {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this)
+        } catch (e: Exception) {
+        }
+        val last = try {
+            locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        } catch (e: Exception) {
+            null
+        }
+        if (last != null) onLocationChanged(last)
+        if (!gpsOn) showStatus(activity.getString(R.string.gps_off))
+        else if (last == null) showStatus(activity.getString(R.string.gps_searching))
+    }
+
+    fun stop() {
+        map.onPause()
+        if (running) {
+            try {
+                locationManager.removeUpdates(this)
+            } catch (e: Exception) {
+            }
+        }
+        running = false
+    }
+
+    private fun showStatus(text: String?) {
+        statusText.text = text
+        statusText.visibility = if (text == null) View.GONE else View.VISIBLE
+    }
+
+    override fun onLocationChanged(location: Location) {
+        val fresh = System.currentTimeMillis() - location.time < 10_000
+        lastFix = location
+        me.point = GeoPoint(location.latitude, location.longitude)
+        // El rumbo del GPS solo es confiable en movimiento.
+        if (location.hasBearing() && location.hasSpeed() && location.speed > 1.5f) me.bearing = location.bearing
+
+        speedText.text = if (fresh && location.hasSpeed()) (location.speed * 3.6f).roundToInt().toString() else "--"
+        if (location.provider == LocationManager.GPS_PROVIDER) showStatus(null)
+
+        if (follow) map.controller.setCenter(me.point)
+        map.invalidate()
+    }
+
+    override fun onProviderEnabled(provider: String) {
+        if (provider == LocationManager.GPS_PROVIDER) showStatus(activity.getString(R.string.gps_searching))
+    }
+
+    override fun onProviderDisabled(provider: String) {
+        if (provider == LocationManager.GPS_PROVIDER) showStatus(activity.getString(R.string.gps_off))
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+    }
+
+    /** Punto azul con flecha de rumbo, dibujado a mano (más liviano que un ícono). */
+    private class MeOverlay : Overlay() {
+        var point: GeoPoint? = null
+        var bearing: Float? = null
+
+        private val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#408AB4F8") }
+        private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#1A73E8") }
+        private val arrow = Path()
+        private val screen = Point()
+
+        override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
+            if (shadow) return
+            val p = point ?: return
+            mapView.projection.toPixels(p, screen)
+            val d = mapView.resources.displayMetrics.density
+            val x = screen.x.toFloat()
+            val y = screen.y.toFloat()
+
+            canvas.drawCircle(x, y, 22f * d, halo)
+            canvas.drawCircle(x, y, 11f * d, ring)
+
+            val b = bearing
+            if (b == null) {
+                canvas.drawCircle(x, y, 8f * d, dot)
+                return
+            }
+            canvas.save()
+            canvas.rotate(b, x, y)
+            arrow.reset()
+            arrow.moveTo(x, y - 9f * d)
+            arrow.lineTo(x + 7f * d, y + 7f * d)
+            arrow.lineTo(x, y + 3.5f * d)
+            arrow.lineTo(x - 7f * d, y + 7f * d)
+            arrow.close()
+            canvas.drawPath(arrow, dot)
+            canvas.restore()
+        }
+    }
+}
