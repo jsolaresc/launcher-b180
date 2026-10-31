@@ -9,10 +9,12 @@ import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.KeyEvent
+import android.provider.Settings
 import android.view.View
+import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -30,6 +32,11 @@ class MainActivity : Activity() {
     private lateinit var dockClock: TextView
     private lateinit var volume: SeekBar
     private lateinit var audio: AudioManager
+    private lateinit var music: Music
+    private lateinit var playButton: ImageButton
+    private lateinit var trackTitle: TextView
+    private lateinit var trackArtist: TextView
+    private lateinit var musicSource: TextView
 
     // Mantiene la barra al día si el volumen cambia con la perilla o el volante.
     private val volumeReceiver = object : BroadcastReceiver() {
@@ -67,18 +74,34 @@ class MainActivity : Activity() {
         findViewById<View>(R.id.map_panel).setOnClickListener {
             Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
         }
+        playButton = findViewById(R.id.btn_play)
+        trackTitle = findViewById(R.id.track_title)
+        trackArtist = findViewById(R.id.track_artist)
+        musicSource = findViewById(R.id.music_source)
+        music = Music(this) { runOnUiThread { renderMusic() } }
+
         findViewById<View>(R.id.music_card).setOnClickListener {
-            Dock.open(this, Dock.MUSIC, getString(R.string.label_music))
+            if (!music.hasAccess()) requestAccess()
+            else Dock.open(this, Dock.MUSIC, getString(R.string.label_music))
+        }
+        // Mantener apretada la tarjeta: muestra qué sesiones de música ve el launcher.
+        findViewById<View>(R.id.music_card).setOnLongClickListener {
+            Toast.makeText(this, music.describeSessions(), Toast.LENGTH_LONG).show()
+            true
         }
 
         findViewById<View>(R.id.btn_prev).setOnClickListener {
-            MediaKeys.send(this, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            if (!music.hasAccess()) requestAccess() else music.previous()
         }
-        findViewById<View>(R.id.btn_play).setOnClickListener {
-            MediaKeys.send(this, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+        playButton.setOnClickListener {
+            when {
+                !music.hasAccess() -> requestAccess()
+                // Sin sesión de música: la fuente BT está apagada. Abrir Bluetooth la activa.
+                !music.playPause() -> Dock.open(this, Dock.MUSIC, getString(R.string.label_music))
+            }
         }
         findViewById<View>(R.id.btn_next).setOnClickListener {
-            MediaKeys.send(this, KeyEvent.KEYCODE_MEDIA_NEXT)
+            if (!music.hasAccess()) requestAccess() else music.next()
         }
 
         audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -93,6 +116,30 @@ class MainActivity : Activity() {
         })
         findViewById<View>(R.id.vol_down).setOnClickListener { stepVolume(AudioManager.ADJUST_LOWER) }
         findViewById<View>(R.id.vol_up).setOnClickListener { stepVolume(AudioManager.ADJUST_RAISE) }
+    }
+
+    private fun requestAccess() {
+        Toast.makeText(this, R.string.grant_access, Toast.LENGTH_LONG).show()
+        try {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } catch (e: Exception) {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+        }
+    }
+
+    private fun renderMusic() {
+        if (!music.hasAccess()) {
+            musicSource.text = getString(R.string.music_source)
+            trackTitle.text = getString(R.string.music_no_access_title)
+            trackArtist.text = getString(R.string.music_no_access)
+            playButton.setImageResource(R.drawable.ic_play)
+            return
+        }
+        val source = if (music.source == Music.BT_PACKAGE) "Bluetooth" else (music.source ?: "Bluetooth")
+        musicSource.text = "$source · ${music.stateName}"
+        trackTitle.text = music.title?.takeIf { it.isNotBlank() } ?: getString(R.string.music_idle_title)
+        trackArtist.text = music.artist?.takeIf { it.isNotBlank() } ?: getString(R.string.music_idle_hint)
+        playButton.setImageResource(if (music.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
     private fun stepVolume(direction: Int) {
@@ -127,12 +174,14 @@ class MainActivity : Activity() {
         handler.removeCallbacks(tick)
         handler.post(tick)
         refreshVolume()
+        music.start()
         registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"))
     }
 
     override fun onPause() {
         handler.removeCallbacks(tick)
         unregisterReceiver(volumeReceiver)
+        music.stop()
         super.onPause()
     }
 

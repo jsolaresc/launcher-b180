@@ -89,6 +89,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="4dp"
+                        android:id="@+id/music_source"
                         android:text="@string/music_source"
                         android:textColor="@color/muted"
                         android:textSize="10sp" />
@@ -177,7 +178,7 @@
                         android:contentDescription="@string/play_pause"
                         android:padding="12dp"
                         android:scaleType="fitCenter"
-                        android:src="@drawable/ic_play_pause" />
+                        android:src="@drawable/ic_play" />
 
                     <ImageButton
                         android:id="@+id/btn_next"

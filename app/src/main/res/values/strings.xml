@@ -15,6 +15,11 @@
     <string name="music_source">Bluetooth · celular</string>
     <string name="music_title">Música del celular</string>
     <string name="music_hint">Título y portada llegan en la etapa 2</string>
+    <string name="music_no_access">Tocá acá para activar el acceso a notificaciones</string>
+    <string name="music_no_access_title">Falta un permiso</string>
+    <string name="music_idle_title">Sin música</string>
+    <string name="music_idle_hint">Dale Play para empezar</string>
+    <string name="grant_access">Activá Launcher B180 y volvé con el botón de inicio</string>
     <string name="prev">Canción anterior</string>
     <string name="play_pause">Reproducir o pausar</string>
     <string name="next">Canción siguiente</string>

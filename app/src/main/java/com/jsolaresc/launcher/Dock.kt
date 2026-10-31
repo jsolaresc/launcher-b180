@@ -4,10 +4,7 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.media.AudioManager
-import android.os.SystemClock
 import android.provider.Settings
-import android.view.KeyEvent
 import android.widget.Toast
 
 /**
@@ -73,19 +70,5 @@ object Dock {
                 .putExtra(AppsActivity.EXTRA_PICK_KEY, key)
                 .putExtra(AppsActivity.EXTRA_PICK_LABEL, label)
         )
-    }
-}
-
-/**
- * Controles de música provisorios (etapa 1): mandan las teclas multimedia
- * estándar, igual que un control remoto. En la etapa 2 se reemplazan por
- * el control directo de la sesión de música y el arreglo del Play.
- */
-object MediaKeys {
-    fun send(ctx: Context, keyCode: Int) {
-        val audio = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val now = SystemClock.uptimeMillis()
-        audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0))
-        audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0))
     }
 }

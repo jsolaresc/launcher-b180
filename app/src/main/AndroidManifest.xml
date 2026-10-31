@@ -31,5 +31,16 @@
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation|uiMode"
             android:exported="false"
             android:screenOrientation="sensorLandscape" />
+
+        <!-- Solo existe para que Android permita leer y controlar la música que suena. -->
+        <service
+            android:name=".MediaListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
