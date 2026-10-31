@@ -92,7 +92,7 @@ class AppsActivity : Activity() {
 
     private inner class Adapter : BaseAdapter() {
         override fun getCount() = apps.size
-        override fun getItem(position: Int) = apps[position]
+        override fun getItem(position: Int): Any = apps[position]
         override fun getItemId(position: Int) = position.toLong()
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
