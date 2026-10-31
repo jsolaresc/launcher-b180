@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Launcher B180</string>
+
+    <string name="label_maps">Maps</string>
+    <string name="label_music">Música</string>
+    <string name="label_phone">Teléfono</string>
+    <string name="label_radio">Radio</string>
+    <string name="label_settings">Ajustes</string>
+    <string name="label_apps">Todas las apps</string>
+
+    <string name="map_placeholder_title">Mapa</string>
+    <string name="map_placeholder_body">Llega en la etapa 3. Tocá para abrir Google Maps.</string>
+
+    <string name="music_source">Bluetooth · celular</string>
+    <string name="music_title">Música del celular</string>
+    <string name="music_hint">Título y portada llegan en la etapa 2</string>
+    <string name="prev">Canción anterior</string>
+    <string name="play_pause">Reproducir o pausar</string>
+    <string name="next">Canción siguiente</string>
+
+    <string name="apps_title">Apps</string>
+    <string name="pick_title">Elegí la app para %1$s</string>
+    <string name="close">Cerrar</string>
+    <string name="open_failed">No pude abrir esa app</string>
+</resources>
