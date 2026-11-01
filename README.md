@@ -14,8 +14,9 @@ Cada versión nueva se instala encima de la anterior: no hace falta desinstalar.
 
 - **Dock:** Apps, Radio, Teléfono, Música y Maps. Si un botón no tiene app asignada, se abre la lista para elegirla.
   **Mantené apretado** un botón para cambiar su app.
-- **Botón de la izquierda:** todas las apps.
-- **Controles de música:** anterior, reproducir/pausar y siguiente (teclas multimedia estándar).
+- **Música:** el desplegable de la tarjeta elige la fuente (Bluetooth, YouTube Music, USB, Radio u otra app).
+- **Destinos rápidos:** "Agregar", mover el mapa hasta el lugar y "Guardar acá". Mantener apretado para editar.
+- **Fotomultas:** la campana sobre el mapa activa o silencia el aviso sonoro.
 
 ## Etapas
 
@@ -28,6 +29,8 @@ Cada versión nueva se instala encima de la anterior: no hace falta desinstalar.
 
 ## Notas técnicas
 
-- Sin dependencias externas; compila para Android 5+ (`targetSdk` 29).
+- Única dependencia: osmdroid (mapa). Compila para Android 5+ (`targetSdk` 29).
+- Mapa, velocidad máxima y fotomultas: datos de OpenStreetMap; clima: Open-Meteo.
+- USB, radio y cambio de fuente: servicio `ITsCommon` de `com.ts.MainUI` (la app del estéreo).
 - La firma usa la clave fija de `keystore/` para que las actualizaciones se instalen encima.
 - GitHub Actions compila cada push a `main` y publica el APK en Releases.
