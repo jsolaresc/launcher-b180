@@ -31,6 +31,8 @@ class AppsActivity : Activity() {
 
     private var apps: List<AppEntry> = emptyList()
 
+    override fun attachBaseContext(base: android.content.Context) = super.attachBaseContext(Theme.wrap(base))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_apps)

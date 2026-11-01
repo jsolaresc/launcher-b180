@@ -80,4 +80,34 @@
     <string name="station_hint">Mantené apretado para ponerle nombre</string>
     <string name="usb_label">Pendrive · USB</string>
     <string name="source_not_active">Tocá Play para escucharla</string>
+
+    <string name="settings_title">Ajustes</string>
+    <string name="back">Volver</string>
+    <string name="theme">Tema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="theme_auto">Automático</string>
+    <string name="theme_auto_hint">Automático sigue las luces del auto. Si el estéreo no informa las luces, usa la salida y la puesta del sol.</string>
+    <string name="bottom_card">Tarjeta debajo de la música</string>
+    <string name="card_places">Destinos</string>
+    <string name="card_clock">Reloj</string>
+    <string name="card_compass">Brújula</string>
+    <string name="card_speedo">Velocímetro</string>
+    <string name="volume_title">Volumen</string>
+    <string name="vol_music">Música</string>
+    <string name="vol_alerts">Fotomultas</string>
+    <string name="vol_notifications">Notificaciones</string>
+    <string name="vol_system">Sistema</string>
+    <string name="offline_map">Mapa sin conexión</string>
+    <string name="offline_map_hint">Guarda en el estéreo el mapa de 20 km alrededor de donde estás, para verlo sin señal. Conviene hacerlo con WiFi.</string>
+    <string name="offline_download">Descargar zona</string>
+    <string name="offline_cancel">Cancelar</string>
+    <string name="offline_saved">Guardado: %1$d MB</string>
+    <string name="offline_progress">Descargando… %1$d de %2$d</string>
+    <string name="offline_done">Listo: el mapa de la zona quedó guardado</string>
+    <string name="offline_failed">Se cortó la descarga (%1$d partes con error). Podés reintentar.</string>
+    <string name="offline_no_location">Todavía no hay ubicación del GPS</string>
+    <string name="version">Launcher B180 · %1$s</string>
+    <string name="heading_n">Norte</string>
+    <string name="speedo_limit">Máxima %1$d</string>
 </resources>

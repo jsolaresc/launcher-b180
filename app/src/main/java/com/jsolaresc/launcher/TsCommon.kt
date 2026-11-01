@@ -21,6 +21,7 @@ class TsCommon(private val ctx: Context) {
         private const val TX_ENTER_MODE = 1
         private const val TX_SEND_KEY = 6
         private const val TX_WORK_MODE = 10
+        private const val TX_NIGHT = 14
         private const val TX_CUR_TIME = 26
         private const val TX_TOTAL_TIME = 27
         private const val TX_PLAY_STATE = 28
@@ -96,6 +97,9 @@ class TsCommon(private val ctx: Context) {
             data.recycle()
         }
     }
+
+    /** Luces del auto encendidas (cable de iluminación, Mcu.GetIll()). */
+    fun isNight(): Boolean? = call(TX_NIGHT) { it.readInt() != 0 }
 
     fun workMode(): Int? = call(TX_WORK_MODE) { it.readInt() }
     fun enterMode(mode: Int) = call(TX_ENTER_MODE, mode) { } != null

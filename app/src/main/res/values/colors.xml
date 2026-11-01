@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Tema claro (el oscuro está en values-night) -->
 <resources>
-    <color name="ground">#0E1116</color>
-    <color name="map">#161C26</color>
-    <color name="card">#1C222C</color>
-    <color name="raised">#2C3440</color>
-    <color name="track">#2E3644</color>
-    <color name="text">#E8EAED</color>
-    <color name="muted">#A8B0BC</color>
-    <color name="accent">#8AB4F8</color>
-    <color name="on_accent">#0E1116</color>
-    <color name="cover">#5B4B8A</color>
+    <color name="ground">#EEF1F5</color>
+    <color name="map">#E3E7EC</color>
+    <color name="card">#FFFFFF</color>
+    <color name="raised">#E3E7EC</color>
+    <color name="track">#D5DAE1</color>
+    <color name="text">#1F2328</color>
+    <color name="muted">#5F6670</color>
+    <color name="accent">#1A73E8</color>
+    <color name="on_accent">#FFFFFF</color>
+    <color name="cover">#C9B8F0</color>
+    <color name="tile">#EEF1F5</color>
+    <color name="tile_border">#C3C9D2</color>
+    <color name="menu">#FFFFFF</color>
+    <color name="selected">#D3E3FD</color>
+    <color name="selected_text">#0B57D0</color>
+    <color name="floating">#F2FFFFFF</color>
+    <color name="speed_bg">#F2FFFFFF</color>
+    <color name="speed_border">#D5DAE1</color>
 </resources>

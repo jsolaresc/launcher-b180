@@ -7,8 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Point
 import android.location.Location
-import android.media.AudioManager
-import android.media.ToneGenerator
+import android.media.SoundPool
 import android.os.Handler
 import android.os.Looper
 import org.json.JSONArray
@@ -32,6 +31,8 @@ import kotlin.math.abs
 class Cameras(
     private val ctx: Context,
     private val map: MapView,
+    /** Velocidad máxima de la calle actual (OpenStreetMap), si se conoce. */
+    private val roadLimit: () -> Int?,
     private val onAlert: (Camera?, Int) -> Unit
 ) {
 
@@ -56,9 +57,11 @@ class Cameras(
 
     @Volatile
     private var inFlight = false
-    private val alerted = HashSet<String>()
+    /** Cámaras que ya sonaron: cada una suena una sola vez. */
+    private val sounded = LinkedHashSet<String>()
     private var current: Camera? = null
-    private var tone: ToneGenerator? = null
+    private val soundPool = SoundPool.Builder().setMaxStreams(1).build()
+    private val alertSound = soundPool.load(ctx, R.raw.alerta, 1)
 
     var soundOn: Boolean
         get() = prefs.getBoolean("sound", true)
@@ -220,29 +223,31 @@ class Cameras(
                 bestDist = dist
             }
         }
-        if (best != null && best.id !in alerted) {
-            alerted.add(best.id)
-            if (soundOn) beep()
+        // Suena solo si vas por encima de la máxima (la de la cámara o la de la calle),
+        // o si no se conoce ninguna. Una sola vez por cámara.
+        if (best != null && best.id !in sounded) {
+            val limit = best.limit ?: roadLimit()
+            val kmh = loc.speed * 3.6f
+            if (limit == null || kmh > limit + 2) {
+                sounded.add(best.id)
+                if (soundOn) beep()
+            }
         }
         if (best?.id != current?.id || best != null) {
             current = best
             onAlert(best, if (best != null) bestDist.toInt() else 0)
         }
-        // Al alejarse, se puede volver a avisar la próxima vez que se pase.
-        if (alerted.size > 50) alerted.clear()
+        // Memoria acotada: se olvidan las cámaras más viejas.
+        while (sounded.size > 200) sounded.remove(sounded.first())
     }
 
     private fun beep() {
-        try {
-            val t = tone ?: ToneGenerator(AudioManager.STREAM_MUSIC, 90).also { tone = it }
-            t.startTone(ToneGenerator.TONE_PROP_BEEP2, 500)
-        } catch (e: Exception) {
-        }
+        val v = Prefs.alertVolume(ctx) / 100f
+        soundPool.play(alertSound, v, v, 1, 0, 1f)
     }
 
     fun release() {
-        tone?.release()
-        tone = null
+        soundPool.release()
     }
 
     /** Íconos dibujados a mano, solo para lo que está en pantalla y con zoom de calle. */

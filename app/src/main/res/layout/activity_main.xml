@@ -655,17 +655,28 @@
 
             <LinearLayout
                 android:id="@+id/dock_maps"
-                style="@style/DockItem"
-                android:background="@drawable/bg_dock_item_active">
+                style="@style/DockItem">
 
                 <ImageView
                     style="@style/DockIcon"
-                    android:src="@drawable/ic_maps" />
+                    android:src="@drawable/ic_maps_dock" />
 
                 <TextView
                     style="@style/DockLabel"
-                    android:text="@string/label_maps"
-                    android:textColor="#AECBFA" />
+                    android:text="@string/label_maps" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/dock_settings"
+                style="@style/DockItem">
+
+                <ImageView
+                    style="@style/DockIcon"
+                    android:src="@drawable/ic_settings" />
+
+                <TextView
+                    style="@style/DockLabel"
+                    android:text="@string/label_settings" />
             </LinearLayout>
         </LinearLayout>
 

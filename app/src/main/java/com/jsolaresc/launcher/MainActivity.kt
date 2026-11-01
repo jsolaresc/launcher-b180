@@ -48,7 +48,9 @@ class MainActivity : Activity() {
     private val locale = Locale("es", "AR")
     private val timeFormat = SimpleDateFormat("HH:mm", locale)
     private val dateFormat = SimpleDateFormat("EEEE d MMM", locale)
-    private val dialogTheme = android.R.style.Theme_Material_Dialog_Alert
+    private val dialogTheme get() = Theme.dialogTheme(this)
+    private var startedNight = false
+    private var resumedFully = false
 
     // Reloj y estado
     private lateinit var clock: TextView
@@ -117,6 +119,12 @@ class MainActivity : Activity() {
     /** -1: agregando uno nuevo; >= 0: moviendo ese; null: no se está eligiendo. */
     private var pickingIndex: Int? = null
 
+    // Tarjeta inferior (destinos, reloj, brújula o velocímetro)
+    private var bottomCard = Prefs.CARD_PLACES
+    private var cardMain: TextView? = null
+    private var cardSub: TextView? = null
+    private var cardNeedle: ImageView? = null
+
     private var online = false
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
@@ -143,6 +151,14 @@ class MainActivity : Activity() {
         }
     }
 
+    // Tema automático: luces del auto (cable de iluminación) o, si no, el sol.
+    private val themeTick = object : Runnable {
+        override fun run() {
+            checkAutoTheme()
+            handler.postDelayed(this, 20_000)
+        }
+    }
+
     // El progreso de la canción avanza de a un segundo mientras suena.
     private val progressTick = object : Runnable {
         override fun run() {
@@ -151,9 +167,12 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun attachBaseContext(base: Context) = super.attachBaseContext(Theme.wrap(base))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NavMap.configure(this)
+        startedNight = Theme.isNight(this)
         setContentView(R.layout.activity_main)
         ts = TsCommon(this)
         ts.connect()
@@ -164,7 +183,6 @@ class MainActivity : Activity() {
 
         placesView = findViewById(R.id.places)
         places = Places.load(this)
-        renderPlaces()
 
         clock = findViewById(R.id.clock)
         date = findViewById(R.id.date)
@@ -214,7 +232,9 @@ class MainActivity : Activity() {
         cameraAlertTitle = findViewById(R.id.camera_alert_title)
         cameraAlertDetail = findViewById(R.id.camera_alert_detail)
         btnAlerts = findViewById(R.id.btn_alerts)
-        cameras = Cameras(this, findViewById<MapView>(R.id.map)) { camera, meters -> renderCameraAlert(camera, meters) }
+        cameras = Cameras(this, findViewById<MapView>(R.id.map), { currentLimit }) { camera, meters ->
+            renderCameraAlert(camera, meters)
+        }
         renderAlertsButton()
         btnAlerts.setOnClickListener {
             cameras.soundOn = !cameras.soundOn
@@ -228,6 +248,7 @@ class MainActivity : Activity() {
             speedLimit.update(loc, online)
             weather.update(loc, online)
             renderPlaceDistances()
+            renderCardLive(loc)
         }
 
         if (!navMap.hasPermission()) requestLocation()
@@ -313,6 +334,85 @@ class MainActivity : Activity() {
     }
 
     // ---------- Destinos rápidos ----------
+
+    private fun renderBottomCard() {
+        bottomCard = Prefs.bottomCard(this)
+        cardMain = null
+        cardSub = null
+        cardNeedle = null
+        if (bottomCard == Prefs.CARD_PLACES) {
+            renderPlaces()
+            return
+        }
+        placesView.removeAllViews()
+        placeDetails.clear()
+        val d = resources.displayMetrics.density
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER
+
+        if (bottomCard == Prefs.CARD_COMPASS) {
+            val needle = ImageView(this)
+            needle.setImageResource(R.drawable.ic_compass_needle)
+            row.addView(needle, LinearLayout.LayoutParams((52 * d).toInt(), (52 * d).toInt()))
+            cardNeedle = needle
+        }
+        val texts = LinearLayout(this)
+        texts.orientation = LinearLayout.VERTICAL
+        texts.gravity = Gravity.CENTER
+        val main = TextView(this)
+        main.setTextColor(getColor(R.color.text))
+        main.textSize = if (bottomCard == Prefs.CARD_COMPASS) 22f else 30f
+        main.includeFontPadding = false
+        main.gravity = Gravity.CENTER
+        val sub = TextView(this)
+        sub.setTextColor(getColor(R.color.muted))
+        sub.textSize = 10f
+        sub.gravity = Gravity.CENTER
+        texts.addView(main)
+        texts.addView(sub)
+        val textParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        if (cardNeedle != null) textParams.marginStart = (14 * d).toInt()
+        row.addView(texts, textParams)
+        placesView.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        cardMain = main
+        cardSub = sub
+        if (bottomCard == Prefs.CARD_CLOCK) updateClock() else renderCardLive(navMap.lastFix)
+    }
+
+    private fun renderCardLive(loc: Location?) {
+        val main = cardMain ?: return
+        val sub = cardSub ?: return
+        when (bottomCard) {
+            Prefs.CARD_SPEEDO -> {
+                val fresh = loc != null && System.currentTimeMillis() - loc.time < 10_000 && loc.hasSpeed()
+                main.text = if (fresh) "${(loc!!.speed * 3.6f).roundToInt()} km/h" else "-- km/h"
+                sub.text = currentLimit?.let { getString(R.string.speedo_limit, it) } ?: ""
+            }
+            Prefs.CARD_COMPASS -> {
+                val bearing = loc?.takeIf { it.hasBearing() && it.hasSpeed() && it.speed > 1.5f }?.bearing
+                if (bearing == null) {
+                    main.text = "—"
+                    sub.text = ""
+                    return
+                }
+                val names = arrayOf("N", "NE", "E", "SE", "S", "SO", "O", "NO")
+                main.text = names[((bearing + 22.5f) / 45f).toInt() % 8]
+                sub.text = "${bearing.roundToInt()}°"
+                cardNeedle?.rotation = -bearing
+            }
+        }
+    }
+
+    private fun checkAutoTheme() {
+        if (Prefs.theme(this) != Prefs.THEME_AUTO) return
+        // De noche siempre oscuro; de día, oscuro si prendés las luces (túnel, lluvia).
+        val night = ts.isNight() == true || Theme.sunIsDown(navMap.lastFix)
+        if (night != Prefs.autoNight(this)) {
+            Prefs.setAutoNight(this, night)
+            recreate()
+        }
+    }
 
     private fun renderPlaces() {
         placesView.removeAllViews()
@@ -905,6 +1005,9 @@ class MainActivity : Activity() {
         bindDock(R.id.dock_phone, Dock.PHONE, getString(R.string.label_phone))
         bindDock(R.id.dock_maps, Dock.MAPS, getString(R.string.label_maps))
         findViewById<View>(R.id.dock_music).setOnClickListener { openSource() }
+        findViewById<View>(R.id.dock_settings).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
     }
 
     private fun bindDock(viewId: Int, key: String, label: String) {
@@ -921,6 +1024,10 @@ class MainActivity : Activity() {
         val now = Date()
         clock.text = timeFormat.format(now)
         date.text = dateFormat.format(now)
+        if (bottomCard == Prefs.CARD_CLOCK) {
+            cardMain?.text = timeFormat.format(now)
+            cardSub?.text = dateFormat.format(now)
+        }
     }
 
     private fun setOnline(value: Boolean) {
@@ -969,6 +1076,15 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        // El tema pudo cambiar en Ajustes.
+        if (Theme.isNight(this) != startedNight) {
+            recreate()
+            return
+        }
+        resumedFully = true
+        renderBottomCard()
+        handler.removeCallbacks(themeTick)
+        handler.postDelayed(themeTick, 3000)
         handler.removeCallbacks(tick)
         handler.post(tick)
         refreshVolume()
@@ -989,9 +1105,15 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        if (!resumedFully) {
+            super.onPause()
+            return
+        }
+        resumedFully = false
         handler.removeCallbacks(tick)
         handler.removeCallbacks(progressTick)
         handler.removeCallbacks(tsTick)
+        handler.removeCallbacks(themeTick)
         unregisterReceiver(volumeReceiver)
         music.stop()
         unwatchNetwork()

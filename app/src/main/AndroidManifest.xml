@@ -39,6 +39,12 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape" />
 
+        <activity
+            android:name=".SettingsActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
         <!-- Solo existe para que Android permita leer y controlar la música que suena. -->
         <service
             android:name=".MediaListener"
