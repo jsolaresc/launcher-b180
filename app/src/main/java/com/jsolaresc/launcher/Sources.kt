@@ -75,7 +75,7 @@ object Sources {
             Source(
                 id = pkg,
                 name = label,
-                detail = ctx.getString(R.string.source_app_detail),
+                detail = "",
                 iconRes = null,
                 color = 0,
                 sessionPackage = pkg,
@@ -89,7 +89,7 @@ object Sources {
         ) + apps + listOf(
             Source(USB, ctx.getString(R.string.source_usb), ctx.getString(R.string.source_usb_detail),
                 R.drawable.ic_usb_white, 0xFF3A4352.toInt(), null, USB_SCREEN, null),
-            Source(RADIO, ctx.getString(R.string.source_radio), ctx.getString(R.string.source_radio_detail),
+            Source(RADIO, ctx.getString(R.string.source_radio), "",
                 R.drawable.ic_radio_white, 0xFFE37400.toInt(), null, RADIO_SCREEN, null)
         )
     }

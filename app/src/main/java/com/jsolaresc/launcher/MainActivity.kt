@@ -683,7 +683,9 @@ class MainActivity : Activity() {
             val row = LayoutInflater.from(this).inflate(R.layout.item_source, menu, false)
             bindSourceIcon(row.findViewById(R.id.source_item_icon), item)
             row.findViewById<TextView>(R.id.source_item_name).text = item.name
-            row.findViewById<TextView>(R.id.source_item_detail).text = item.detail
+            val detailView = row.findViewById<TextView>(R.id.source_item_detail)
+            detailView.text = item.detail
+            detailView.visibility = if (item.detail.isEmpty()) View.GONE else View.VISIBLE
             val selected = item.id == source.id
             row.isSelected = selected
             row.findViewById<View>(R.id.source_item_check).visibility = if (selected) View.VISIBLE else View.INVISIBLE

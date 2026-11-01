@@ -59,7 +59,7 @@
     <string name="source_bt_detail">Música del celular</string>
     <string name="source_usb">USB</string>
     <string name="source_usb_detail">Pendrive en el estéreo</string>
-    <string name="source_radio">Radio FM</string>
+    <string name="source_radio">Radio</string>
     <string name="source_radio_detail">Sintonizador del estéreo</string>
     <string name="source_app_detail">App en el estéreo</string>
     <string name="source_remove">¿Quitar %1$s de la lista?</string>

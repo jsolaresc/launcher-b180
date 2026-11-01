@@ -181,7 +181,8 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     }
 
     private fun renderStatus() {
-        val text = gpsStatus ?: if (offline) activity.getString(R.string.offline) else null
+        // Sin conexión no se avisa en el mapa: ya lo muestra el ícono de WiFi del dock.
+        val text = gpsStatus
         statusText.text = text
         statusText.visibility = if (text == null) View.GONE else View.VISIBLE
     }

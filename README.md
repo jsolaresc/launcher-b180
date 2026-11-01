@@ -12,17 +12,19 @@ Cada versión nueva se instala encima de la anterior: no hace falta desinstalar.
 
 ## Uso
 
-- **Dock:** Maps, música, teléfono, radio y ajustes. Si un botón no tiene app asignada, se abre la lista para elegirla.
+- **Dock:** Apps, Radio, Teléfono, Música y Maps. Si un botón no tiene app asignada, se abre la lista para elegirla.
   **Mantené apretado** un botón para cambiar su app.
 - **Botón de la izquierda:** todas las apps.
 - **Controles de música:** anterior, reproducir/pausar y siguiente (teclas multimedia estándar).
 
 ## Etapas
 
-- [x] 1. Base: estructura, dock, reloj, lista de apps.
-- [ ] 2. Música: título, artista, portada y arreglo del Play por Bluetooth.
-- [ ] 3. Mapa propio con posición, velocidad e indicaciones de Google Maps.
-- [ ] 4. Extras con señal: portadas y clima.
+- [x] 1. Base: estructura, dock con etiquetas, reloj, lista de apps.
+- [x] 2. Música: título, artista, portada, progreso, volumen y arreglo del Play por Bluetooth; fuentes Bluetooth, YouTube Music, USB y Radio.
+- [x] 3. Mapa propio con posición, velocidad, velocidad máxima, indicaciones de Google Maps, destinos rápidos y fotomultas.
+- [x] 4. Extras con señal: clima.
+- [ ] Descargar el mapa de una zona entera para usarlo sin señal (hoy se guarda lo que ya se vio).
+- [ ] Pruebas en el estéreo.
 
 ## Notas técnicas
 
