@@ -218,7 +218,7 @@ class MainActivity : Activity() {
 
         navBanner.setOnClickListener { openMaps() }
         mapSearch.setOnClickListener { openMaps() }
-        findViewById<View>(R.id.btn_open_maps).setOnClickListener { openMaps() }
+        findViewById<View>(R.id.btn_open_maps).setOnClickListener { setFullMap(!fullMap) }
         findViewById<View>(R.id.map_status).setOnClickListener {
             if (!navMap.hasPermission()) requestLocation()
         }
@@ -257,6 +257,20 @@ class MainActivity : Activity() {
     }
 
     private fun openMaps() = Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
+
+    /** Mapa propio en pantalla completa (sin columna ni dock). Google Maps se abre desde el dock. */
+    private var fullMap = false
+
+    private fun setFullMap(on: Boolean) {
+        fullMap = on
+        val gone = if (on) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.right_column).visibility = gone
+        findViewById<View>(R.id.dock_bar).visibility = gone
+        findViewById<android.widget.ImageButton>(R.id.btn_open_maps).apply {
+            setImageResource(if (on) R.drawable.ic_close_full else R.drawable.ic_open_full)
+            contentDescription = getString(if (on) R.string.map_exit_fullscreen else R.string.map_fullscreen)
+        }
+    }
 
     private fun renderAlertsButton() {
         btnAlerts.setImageResource(if (cameras.soundOn) R.drawable.ic_bell else R.drawable.ic_bell_off)
@@ -1141,5 +1155,6 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (pickingIndex != null) endPick()
+        else if (fullMap) setFullMap(false)
     }
 }

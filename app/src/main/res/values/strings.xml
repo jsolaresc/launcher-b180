@@ -113,6 +113,10 @@
     <string name="save_visited">Guardar las zonas que recorro</string>
     <string name="save_visited_hint">Con señal, lo que muestra el mapa queda guardado para verlo sin señal</string>
     <string name="offline_manage">Administrar</string>
+    <string name="map_fullscreen">Mapa en pantalla completa</string>
+    <string name="map_exit_fullscreen">Salir de pantalla completa</string>
+    <string name="stereo_card">Equipo</string>
+    <string name="stereo_card_hint">Configuración original del estéreo. Los ajustes de fábrica (código 8888) están en Sobre Dispositivo.</string>
     <string name="offline_import">Desde USB</string>
     <string name="import_not_found">Copiá mapa-amba.sqlite a la raíz del pendrive y volvé a tocar "Desde USB"</string>
     <string name="import_copying">Copiando del pendrive… %1$d MB</string>

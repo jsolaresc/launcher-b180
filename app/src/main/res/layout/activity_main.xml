@@ -318,7 +318,7 @@
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:background="@drawable/bg_map_button"
-                    android:contentDescription="@string/open_maps"
+                    android:contentDescription="@string/map_fullscreen"
                     android:padding="10dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_open_full" />
@@ -327,6 +327,7 @@
 
         <!-- COLUMNA DERECHA: 30% -->
         <LinearLayout
+            android:id="@+id/right_column"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginStart="8dp"
@@ -587,6 +588,7 @@
 
     <!-- DOCK -->
     <LinearLayout
+        android:id="@+id/dock_bar"
         android:layout_width="match_parent"
         android:layout_height="54dp"
         android:gravity="center_vertical"
