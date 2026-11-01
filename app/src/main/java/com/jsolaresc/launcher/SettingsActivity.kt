@@ -166,12 +166,32 @@ class SettingsActivity : Activity() {
         row.addView(name, LinearLayout.LayoutParams((80 * d).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT))
 
         val bar = SeekBar(this)
+        // Íconos a los costados: también bajan y suben de a un paso (10 en el volumen propio de 0 a 100).
+        val step = if (max > 30) 10 else 1
+        fun iconButton(icon: Int, desc: Int, delta: Int): android.widget.ImageButton {
+            val b = android.widget.ImageButton(this)
+            b.setImageResource(icon)
+            b.contentDescription = getString(desc)
+            b.setBackgroundResource(R.drawable.bg_round_button)
+            b.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            val pad = (7 * d).toInt()
+            b.setPadding(pad, pad, pad, pad)
+            b.setOnClickListener {
+                val v = (bar.progress + delta).coerceIn(0, max)
+                bar.progress = v
+                onChange(v, true)
+            }
+            return b
+        }
+        val iconSize = (28 * d).toInt()
+        row.addView(iconButton(R.drawable.ic_vol_low, R.string.vol_down, -step), LinearLayout.LayoutParams(iconSize, iconSize))
         bar.max = max
         bar.progress = value
         bar.progressTintList = getColorStateList(R.color.accent)
         bar.progressBackgroundTintList = getColorStateList(R.color.track)
         bar.thumbTintList = getColorStateList(R.color.text)
         row.addView(bar, LinearLayout.LayoutParams(0, (30 * d).toInt(), 1f))
+        row.addView(iconButton(R.drawable.ic_vol_high, R.string.vol_up, step), LinearLayout.LayoutParams(iconSize, iconSize))
 
         val number = TextView(this)
         number.text = value.toString()

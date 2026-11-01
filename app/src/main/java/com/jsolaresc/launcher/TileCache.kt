@@ -32,6 +32,16 @@ class TileCache(private val ctx: Context) : SqlTileWriter() {
         return out
     }
 
+    /** Borra todo lo guardado de esos estilos (nombres de proveedor). */
+    fun deleteProviders(names: List<String>) {
+        val db = getDb() ?: return
+        for (n in names) db.delete(DatabaseFileArchive.TABLE, "${DatabaseFileArchive.COLUMN_PROVIDER}=?", arrayOf(n))
+        try {
+            db.execSQL("VACUUM")
+        } catch (e: Exception) {
+        }
+    }
+
     /** Borra las teselas que cumplan la condición (según la clave) y achica el archivo. */
     fun deleteWhere(match: (Long) -> Boolean) {
         val db = getDb() ?: return

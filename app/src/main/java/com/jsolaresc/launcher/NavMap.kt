@@ -38,27 +38,8 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         private val BUENOS_AIRES = GeoPoint(-34.6037, -58.3816)
         private const val FOLLOW_ZOOM = 17.0
 
-        val DARK_TILES = XYTileSource(
-            "CartoDarkMatter", 0, 19, 256, ".png",
-            arrayOf(
-                "https://a.basemaps.cartocdn.com/dark_all/",
-                "https://b.basemaps.cartocdn.com/dark_all/",
-                "https://c.basemaps.cartocdn.com/dark_all/",
-                "https://d.basemaps.cartocdn.com/dark_all/"
-            ),
-            "© OpenStreetMap · © CARTO"
-        )
-
-        val LIGHT_TILES = XYTileSource(
-            "CartoVoyager", 0, 19, 256, ".png",
-            arrayOf(
-                "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
-                "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
-                "https://c.basemaps.cartocdn.com/rastertiles/voyager/",
-                "https://d.basemaps.cartocdn.com/rastertiles/voyager/"
-            ),
-            "© OpenStreetMap · © CARTO"
-        )
+        val DARK_TILES = CartoTiles("CartoDark2", "dark_all")
+        val LIGHT_TILES = CartoTiles("CartoVoyager2", "rastertiles/voyager")
 
         /** Debe llamarse antes de inflar el layout que contiene el MapView. */
         fun configure(ctx: Context) {

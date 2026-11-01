@@ -172,6 +172,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NavMap.configure(this)
+        CartoTiles.purgeOld(this)
         startedNight = Theme.isNight(this)
         setContentView(R.layout.activity_main)
         ts = TsCommon(this)
@@ -654,8 +655,8 @@ class MainActivity : Activity() {
             override fun onStartTrackingTouch(bar: SeekBar) {}
             override fun onStopTrackingTouch(bar: SeekBar) {}
         })
-        findViewById<View>(R.id.vol_down).setOnClickListener { stepVolume(AudioManager.ADJUST_LOWER) }
-        findViewById<View>(R.id.vol_up).setOnClickListener { stepVolume(AudioManager.ADJUST_RAISE) }
+        findViewById<View>(R.id.vol_down).setOnClickListener { stepVolume(-1) }
+        findViewById<View>(R.id.vol_up).setOnClickListener { stepVolume(1) }
     }
 
     /**
@@ -987,9 +988,15 @@ class MainActivity : Activity() {
         return String.format(locale, "%d:%02d", total / 60, total % 60)
     }
 
-    private fun stepVolume(direction: Int) {
-        audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0)
-        refreshVolume()
+    /** Un paso de volumen. Igual que el deslizable (adjustStreamVolume no siempre anda en el estéreo). */
+    private fun stepVolume(delta: Int) {
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val next = (audio.getStreamVolume(AudioManager.STREAM_MUSIC) + delta).coerceIn(0, max)
+        try {
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, next, 0)
+        } catch (e: Exception) {
+        }
+        volume.progress = next
     }
 
     private fun refreshVolume() {

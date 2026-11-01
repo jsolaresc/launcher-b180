@@ -5,6 +5,7 @@ Mismo formato que la base de osmdroid (tabla tiles: key, provider, tile, expires
 mismas zonas, zooms y estilos que "Descargar AMBA" del launcher.
 Lo corre GitHub Actions (workflow "Mapa sin conexión").
 """
+import os
 import sqlite3
 import sys
 import time
@@ -22,10 +23,14 @@ AMBA = [
     (-34.64, -57.88, -35.00, -58.50),  # Zona Sur: Avellaneda, Quilmes, Ezeiza, La Plata
 ]
 
+# Nombres iguales a NavMap.DARK_TILES / LIGHT_TILES.
 SOURCES = {
-    "CartoDarkMatter": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-    "CartoVoyager": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+    "CartoDark2": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    "CartoVoyager2": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
 }
+
+# Clave gratuita de CARTO: sin ella las teselas traen la marca "API KEY REQUIRED".
+KEY = (os.environ.get("CARTO_KEY") or (open("carto.key").read() if os.path.exists("carto.key") else "")).strip()
 
 UA = "com.jsolaresc.launcher (mapa sin conexión)"
 
@@ -67,6 +72,8 @@ def fetch(url):
 
 
 def main(out):
+    if not KEY:
+        sys.exit("Falta la clave de CARTO (carto.key)")
     db = sqlite3.connect(out)
     db.execute(
         "CREATE TABLE IF NOT EXISTS tiles (key INTEGER, provider TEXT, tile BLOB, expires INTEGER, "
@@ -78,7 +85,8 @@ def main(out):
     def work(job):
         name, url, z, x, y = job
         sub = "abcd"[(x + y) % 4]
-        return job, fetch(url.format(s=sub, z=z, x=x, y=y))
+        u = url.format(s=sub, z=z, x=x, y=y)
+        return job, fetch(u + "?key=" + KEY if KEY else u)
 
     done = failed = 0
     with ThreadPoolExecutor(8) as pool:

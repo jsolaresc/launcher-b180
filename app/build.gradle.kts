@@ -6,6 +6,9 @@ plugins {
 // Cada compilación en GitHub suma 1 a la versión, así el estéreo acepta la actualización.
 val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 
+// Clave gratuita de CARTO para las teselas del mapa (carto.key en la raíz del repo).
+val cartoKey = (System.getenv("CARTO_KEY") ?: rootProject.file("carto.key").takeIf { it.exists() }?.readText() ?: "").trim()
+
 android {
     namespace = "com.jsolaresc.launcher"
     compileSdk = 34
@@ -17,6 +20,7 @@ android {
         targetSdk = 29
         versionCode = buildNumber
         versionName = "0.1.$buildNumber"
+        buildConfigField("String", "CARTO_KEY", "\"$cartoKey\"")
     }
 
     // Clave fija guardada en el repo: todas las versiones se firman igual,
@@ -38,6 +42,10 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("shared")
         }
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {
