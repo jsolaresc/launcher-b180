@@ -21,7 +21,8 @@ import kotlin.math.sqrt
  * (Overpass) cuando hay señal y se guarda por zona: las calles ya recorridas
  * muestran su máxima también sin señal.
  */
-class SpeedLimit(ctx: Context, private val onChange: (Int?) -> Unit) {
+/** onChange(máxima, nombre de la calle). */
+class SpeedLimit(ctx: Context, private val onChange: (Int?, String?) -> Unit) {
 
     private val prefs = ctx.getSharedPreferences("maxspeed", Context.MODE_PRIVATE)
     private val executor = Executors.newSingleThreadExecutor()
@@ -49,7 +50,7 @@ class SpeedLimit(ctx: Context, private val onChange: (Int?) -> Unit) {
             if (key != lastKey) {
                 lastKey = key
                 val v = prefs.getInt(key, -1)
-                onChange(v.takeIf { it > 0 })
+                onChange(v.takeIf { it > 0 }, prefs.getString("n:$key", null))
             }
             return
         }
@@ -69,17 +70,17 @@ class SpeedLimit(ctx: Context, private val onChange: (Int?) -> Unit) {
             }
             inFlight = false
             if (result != null) {
-                prefs.edit().putInt(key, result.first ?: -1).apply()
+                prefs.edit().putInt(key, result.first ?: -1).putString("n:$key", result.second).apply()
                 main.post {
                     lastKey = key
-                    onChange(result.first)
+                    onChange(result.first, result.second)
                 }
             }
         }
     }
 
-    /** Devuelve (máxima o null si la calle no la tiene cargada), o null si falló la consulta. */
-    private fun query(lat: Double, lon: Double, bearing: Double?): Pair<Int?, Unit>? {
+    /** Devuelve (máxima, nombre) de la calle más probable (cualquiera puede ser null), o null si falló. */
+    private fun query(lat: Double, lon: Double, bearing: Double?): Pair<Int?, String?>? {
         val q = "[out:json][timeout:8];" +
             "way(around:25,$lat,$lon)[highway~\"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$\"];" +
             "out tags geom;"
@@ -97,6 +98,7 @@ class SpeedLimit(ctx: Context, private val onChange: (Int?) -> Unit) {
 
         var bestScore = Double.MAX_VALUE
         var bestLimit: Int? = null
+        var bestName: String? = null
         var found = false
         val cosLat = cos(Math.toRadians(lat))
         for (i in 0 until elements.length()) {
@@ -123,11 +125,12 @@ class SpeedLimit(ctx: Context, private val onChange: (Int?) -> Unit) {
                 if (score < bestScore) {
                     bestScore = score
                     bestLimit = parse(tags?.optString("maxspeed"))
+                    bestName = (tags?.optString("name") ?: "").ifBlank { tags?.optString("ref") ?: "" }.ifBlank { null }
                     found = true
                 }
             }
         }
-        return if (found) Pair(bestLimit, Unit) else Pair(null, Unit)
+        return if (found) Pair(bestLimit, bestName) else Pair(null, null)
     }
 
     private fun pointToSegment(ax: Double, ay: Double, bx: Double, by: Double): Double {

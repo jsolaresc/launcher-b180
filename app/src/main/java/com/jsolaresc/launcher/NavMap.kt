@@ -80,7 +80,17 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     private val statusText: TextView = root.findViewById(R.id.map_status)
     private val recenter: View = root.findViewById(R.id.btn_recenter)
     private val locationManager = activity.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private val me = MeOverlay()
+    private val me = MeOverlay(activity)
+
+    /** Calle por la que vas: se muestra debajo de la flecha. */
+    var street: String?
+        get() = me.street
+        set(value) {
+            if (value != me.street) {
+                me.street = value
+                map.invalidate()
+            }
+        }
 
     private var follow = true
     var lastFix: Location? = null
@@ -225,9 +235,17 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     }
 
     /** Punto azul con flecha de rumbo, dibujado a mano (más liviano que un ícono). */
-    private class MeOverlay : Overlay() {
+    private class MeOverlay(ctx: Context) : Overlay() {
         var point: GeoPoint? = null
         var bearing: Float? = null
+        var street: String? = null
+
+        private val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ctx.getColor(R.color.floating) }
+        private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ctx.getColor(R.color.text)
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+        }
 
         private val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#408AB4F8") }
         private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
@@ -244,6 +262,16 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
             val y = screen.y.toFloat()
 
             canvas.drawCircle(x, y, 22f * d, halo)
+
+            // Nombre de la calle, en una píldora debajo de la flecha.
+            street?.let { name ->
+                label.textSize = 11f * d
+                val text = if (name.length > 32) name.take(31) + "…" else name
+                val w = label.measureText(text) / 2 + 9f * d
+                val top = y + 25f * d
+                canvas.drawRoundRect(x - w, top, x + w, top + 20f * d, 10f * d, 10f * d, pill)
+                canvas.drawText(text, x, top + 14f * d, label)
+            }
             canvas.drawCircle(x, y, 11f * d, ring)
 
             val b = bearing

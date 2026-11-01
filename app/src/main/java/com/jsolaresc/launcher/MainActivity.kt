@@ -224,8 +224,9 @@ class MainActivity : Activity() {
         findViewById<View>(R.id.pick_cancel).setOnClickListener { endPick() }
         findViewById<View>(R.id.pick_save).setOnClickListener { savePick() }
 
-        speedLimit = SpeedLimit(this) { limit ->
+        speedLimit = SpeedLimit(this) { limit, street ->
             currentLimit = limit
+            navMap.street = street
             renderSpeed(navMap.lastFix)
         }
         cameraAlert = findViewById(R.id.camera_alert)
