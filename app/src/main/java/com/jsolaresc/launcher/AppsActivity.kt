@@ -23,6 +23,8 @@ class AppsActivity : Activity() {
     companion object {
         const val EXTRA_PICK_KEY = "pick_key"
         const val EXTRA_PICK_LABEL = "pick_label"
+        /** Elegir una app para sumarla como fuente de música. */
+        const val PICK_MUSIC_APP = "music_app"
     }
 
     private data class AppEntry(val label: String, val component: ComponentName, val icon: Drawable)
@@ -44,7 +46,11 @@ class AppsActivity : Activity() {
         val grid = findViewById<GridView>(R.id.apps_grid)
         grid.setOnItemClickListener { _, _, position, _ ->
             val app = apps[position]
-            if (pickKey != null) {
+            if (pickKey == PICK_MUSIC_APP) {
+                Sources.addApp(this, app.component.packageName)
+                Sources.select(this, app.component.packageName)
+                finish()
+            } else if (pickKey != null) {
                 Dock.save(this, pickKey, app.component)
                 Toast.makeText(this, "${app.label} quedó en $pickLabel", Toast.LENGTH_SHORT).show()
                 finish()

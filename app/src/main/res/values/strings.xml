@@ -36,4 +36,34 @@
     <string name="pick_title">Elegí la app para %1$s</string>
     <string name="close">Cerrar</string>
     <string name="open_failed">No pude abrir esa app</string>
+
+    <string name="label_apps_short">Apps</string>
+    <string name="where_to">¿A dónde vamos?</string>
+    <string name="pick_hint">Mové el mapa hasta el lugar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="save_here">Guardar acá</string>
+    <string name="change_source">Cambiar fuente de música</string>
+    <string name="bt_status">Bluetooth</string>
+    <string name="wifi_status">Conexión a internet</string>
+    <string name="add_place">Agregar</string>
+    <string name="place_name_title">Nombre del lugar</string>
+    <string name="place_name_hint">Ej.: Casa, Trabajo, Facultad</string>
+    <string name="place_options">%1$s</string>
+    <string name="place_rename">Renombrar</string>
+    <string name="place_move">Cambiar ubicación</string>
+    <string name="place_delete">Borrar</string>
+    <string name="place_no_maps">Google Maps no está instalado</string>
+    <string name="source_title">Reproducir desde</string>
+    <string name="source_add">Agregar otra app de música</string>
+    <string name="source_bt">Bluetooth</string>
+    <string name="source_bt_detail">Música del celular</string>
+    <string name="source_usb">USB</string>
+    <string name="source_usb_detail">Pendrive en el estéreo</string>
+    <string name="source_radio">Radio FM</string>
+    <string name="source_radio_detail">Sintonizador del estéreo</string>
+    <string name="source_app_detail">App en el estéreo</string>
+    <string name="source_remove">¿Quitar %1$s de la lista?</string>
+    <string name="remove">Quitar</string>
+    <string name="source_open_hint">Tocá para abrir</string>
+    <string name="offline">Sin conexión</string>
 </resources>

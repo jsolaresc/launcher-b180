@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pantalla principal: 1024x600 px a 240 dpi = 682x400 dp. Mapa 70% / columna 30% / dock abajo. -->
+<!-- 1024x600 px a 240 dpi = 682x400 dp. Mapa 70% / columna 30% / dock con etiquetas. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -27,6 +27,46 @@
                 android:id="@+id/map"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+
+            <!-- Mira para elegir un lugar (al agregar un destino) -->
+            <ImageView
+                android:id="@+id/pick_cross"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_crosshair"
+                android:visibility="gone" />
+
+            <!-- Buscar destino (cuando no se navega) -->
+            <LinearLayout
+                android:id="@+id/map_search"
+                android:layout_width="match_parent"
+                android:layout_height="38dp"
+                android:layout_gravity="top"
+                android:layout_margin="10dp"
+                android:background="@drawable/bg_search"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_search" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="@string/where_to"
+                    android:textColor="@color/muted"
+                    android:textSize="13sp" />
+            </LinearLayout>
 
             <!-- Indicación de Google Maps (de su notificación de navegación) -->
             <LinearLayout
@@ -78,13 +118,14 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Estado del GPS -->
+            <!-- Estado del GPS / sin conexión -->
             <TextView
                 android:id="@+id/map_status"
                 android:layout_width="wrap_content"
                 android:layout_height="28dp"
                 android:layout_gravity="top|end"
-                android:layout_margin="10dp"
+                android:layout_marginTop="56dp"
+                android:layout_marginEnd="10dp"
                 android:background="@drawable/bg_pill"
                 android:gravity="center"
                 android:paddingStart="12dp"
@@ -93,36 +134,109 @@
                 android:textSize="11sp"
                 android:visibility="gone" />
 
-            <!-- Velocidad -->
+            <!-- Velocidad + máxima -->
             <LinearLayout
-                android:layout_width="52dp"
-                android:layout_height="52dp"
+                android:id="@+id/speed_group"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_gravity="bottom|start"
                 android:layout_margin="10dp"
-                android:background="@drawable/bg_speed"
-                android:gravity="center"
-                android:orientation="vertical">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/speed_badge"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:background="@drawable/bg_speed_dark"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/speed"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="--"
+                        android:textColor="@color/text"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/speed_unit"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="km/h"
+                        android:textColor="@color/muted"
+                        android:textSize="8sp" />
+                </LinearLayout>
 
                 <TextView
-                    android:id="@+id/speed"
+                    android:id="@+id/speed_limit"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="7dp"
+                    android:background="@drawable/bg_limit"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:textColor="@color/ground"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Elegir lugar: barra de confirmación -->
+            <LinearLayout
+                android:id="@+id/pick_bar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_pickbar"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="6dp"
+                android:visibility="gone">
+
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="--"
-                    android:textColor="@color/ground"
-                    android:textSize="19sp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="10dp"
+                    android:text="@string/pick_hint"
+                    android:textColor="@color/text"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/pick_cancel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_button_plain"
+                    android:gravity="center"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:text="@string/cancel"
+                    android:textColor="@color/text"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/pick_save"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_button_accent"
+                    android:gravity="center"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:text="@string/save_here"
+                    android:textColor="@color/on_accent"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="km/h"
-                    android:textColor="@color/ground"
-                    android:textSize="8sp" />
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/map_buttons"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
@@ -153,7 +267,7 @@
             </LinearLayout>
         </FrameLayout>
 
-        <!-- COLUMNA DERECHA -->
+        <!-- COLUMNA DERECHA: 30% -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -168,58 +282,89 @@
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:clickable="true"
-                android:focusable="true"
                 android:orientation="vertical"
-                android:padding="12dp">
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="6dp">
 
+                <!-- Fuente (desplegable) -->
                 <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:id="@+id/source_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="30dp"
+                    android:background="@drawable/bg_header"
+                    android:clickable="true"
+                    android:contentDescription="@string/change_source"
+                    android:focusable="true"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:paddingStart="2dp"
+                    android:paddingEnd="2dp">
 
                     <ImageView
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
+                        android:id="@+id/source_icon"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
                         android:importantForAccessibility="no"
-                        android:src="@drawable/ic_bt" />
+                        android:padding="3dp"
+                        android:scaleType="fitCenter" />
 
                     <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="4dp"
                         android:id="@+id/music_source"
-                        android:text="@string/music_source"
-                        android:textColor="@color/muted"
-                        android:textSize="10sp" />
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="7dp"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/text"
+                        android:textSize="11sp" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_chevron_down" />
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/track_row"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_header"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <FrameLayout
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
+                        android:layout_width="62dp"
+                        android:layout_height="62dp"
                         android:background="@drawable/bg_cover">
 
                         <ImageView
-                            android:id="@+id/cover"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
+                            android:id="@+id/cover_placeholder"
+                            android:layout_width="26dp"
+                            android:layout_height="26dp"
                             android:layout_gravity="center"
                             android:importantForAccessibility="no"
                             android:src="@drawable/ic_note" />
+
+                        <ImageView
+                            android:id="@+id/cover"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:scaleType="centerCrop"
+                            android:visibility="gone" />
                     </FrameLayout>
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
+                        android:layout_marginStart="9dp"
                         android:layout_weight="1"
                         android:orientation="vertical">
 
@@ -229,7 +374,6 @@
                             android:layout_height="wrap_content"
                             android:ellipsize="end"
                             android:maxLines="2"
-                            android:text="@string/music_title"
                             android:textColor="@color/text"
                             android:textSize="13sp"
                             android:textStyle="bold" />
@@ -241,9 +385,49 @@
                             android:layout_marginTop="2dp"
                             android:ellipsize="end"
                             android:maxLines="2"
-                            android:text="@string/music_hint"
                             android:textColor="@color/muted"
                             android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Progreso (solo si la fuente lo informa) -->
+                <LinearLayout
+                    android:id="@+id/progress_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <ProgressBar
+                        android:id="@+id/progress"
+                        style="@android:style/Widget.Material.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="3dp"
+                        android:max="1000"
+                        android:progressBackgroundTint="@color/track"
+                        android:progressTint="@color/accent" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/time_now"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textColor="@color/muted"
+                            android:textSize="8sp" />
+
+                        <TextView
+                            android:id="@+id/time_total"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/muted"
+                            android:textSize="8sp" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -260,8 +444,8 @@
 
                     <ImageButton
                         android:id="@+id/btn_prev"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
                         android:background="@drawable/bg_round_button"
                         android:contentDescription="@string/prev"
                         android:padding="9dp"
@@ -270,8 +454,8 @@
 
                     <ImageButton
                         android:id="@+id/btn_play"
-                        android:layout_width="46dp"
-                        android:layout_height="46dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:layout_marginStart="16dp"
                         android:layout_marginEnd="16dp"
                         android:background="@drawable/bg_play"
@@ -282,8 +466,8 @@
 
                     <ImageButton
                         android:id="@+id/btn_next"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
                         android:background="@drawable/bg_round_button"
                         android:contentDescription="@string/next"
                         android:padding="9dp"
@@ -294,25 +478,25 @@
                 <!-- VOLUMEN -->
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:layout_marginTop="10dp"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="2dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <ImageButton
                         android:id="@+id/vol_down"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
                         android:background="@drawable/bg_round_button"
                         android:contentDescription="@string/vol_down"
-                        android:padding="9dp"
+                        android:padding="8dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/ic_vol_low" />
 
                     <SeekBar
                         android:id="@+id/volume"
                         android:layout_width="0dp"
-                        android:layout_height="40dp"
+                        android:layout_height="32dp"
                         android:layout_weight="1"
                         android:contentDescription="@string/volume"
                         android:progressBackgroundTint="@color/track"
@@ -321,105 +505,175 @@
 
                     <ImageButton
                         android:id="@+id/vol_up"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
                         android:background="@drawable/bg_round_button"
                         android:contentDescription="@string/vol_up"
-                        android:padding="8dp"
+                        android:padding="7dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/ic_vol_high" />
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- HORA -->
+            <!-- DESTINOS RÁPIDOS: 2x2 -->
             <LinearLayout
+                android:id="@+id/places"
                 style="@style/Card"
                 android:layout_width="match_parent"
-                android:layout_height="75dp"
+                android:layout_height="98dp"
                 android:layout_marginTop="8dp"
-                android:gravity="center_vertical"
                 android:orientation="vertical"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp">
-
-                <TextView
-                    android:id="@+id/clock"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/text"
-                    android:textSize="23sp" />
-
-                <TextView
-                    android:id="@+id/date"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/muted"
-                    android:textSize="10sp" />
-            </LinearLayout>
+                android:padding="6dp" />
         </LinearLayout>
     </LinearLayout>
 
     <!-- DOCK -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="54dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="10dp"
-        android:paddingEnd="14dp">
+        android:paddingStart="8dp"
+        android:paddingEnd="12dp">
 
-        <ImageButton
-            android:id="@+id/dock_apps"
-            style="@style/DockButton"
-            android:contentDescription="@string/label_apps"
-            android:src="@drawable/ic_apps" />
-
-        <View
+        <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="horizontal">
 
-        <ImageButton
-            android:id="@+id/dock_maps"
-            style="@style/DockButton"
-            android:background="@drawable/bg_dock_active"
-            android:contentDescription="@string/label_maps"
-            android:src="@drawable/ic_maps" />
+            <LinearLayout
+                android:id="@+id/dock_apps"
+                style="@style/DockItem">
 
-        <ImageButton
-            android:id="@+id/dock_music"
-            style="@style/DockButton"
-            android:contentDescription="@string/label_music"
-            android:src="@drawable/ic_music" />
+                <ImageView
+                    style="@style/DockIcon"
+                    android:src="@drawable/ic_apps" />
 
-        <ImageButton
-            android:id="@+id/dock_phone"
-            style="@style/DockButton"
-            android:contentDescription="@string/label_phone"
-            android:src="@drawable/ic_phone" />
+                <TextView
+                    style="@style/DockLabel"
+                    android:text="@string/label_apps_short" />
+            </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/dock_radio"
-            style="@style/DockButton"
-            android:contentDescription="@string/label_radio"
-            android:src="@drawable/ic_radio" />
+            <LinearLayout
+                android:id="@+id/dock_radio"
+                style="@style/DockItem">
 
-        <ImageButton
-            android:id="@+id/dock_settings"
-            style="@style/DockButton"
-            android:contentDescription="@string/label_settings"
-            android:src="@drawable/ic_settings" />
+                <ImageView
+                    style="@style/DockIcon"
+                    android:src="@drawable/ic_radio" />
 
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+                <TextView
+                    style="@style/DockLabel"
+                    android:text="@string/label_radio" />
+            </LinearLayout>
 
-        <TextView
-            android:id="@+id/dock_clock"
+            <LinearLayout
+                android:id="@+id/dock_phone"
+                style="@style/DockItem">
+
+                <ImageView
+                    style="@style/DockIcon"
+                    android:src="@drawable/ic_phone" />
+
+                <TextView
+                    style="@style/DockLabel"
+                    android:text="@string/label_phone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/dock_music"
+                style="@style/DockItem">
+
+                <ImageView
+                    style="@style/DockIcon"
+                    android:src="@drawable/ic_music" />
+
+                <TextView
+                    style="@style/DockLabel"
+                    android:text="@string/label_music" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/dock_maps"
+                style="@style/DockItem"
+                android:background="@drawable/bg_dock_item_active">
+
+                <ImageView
+                    style="@style/DockIcon"
+                    android:src="@drawable/ic_maps" />
+
+                <TextView
+                    style="@style/DockLabel"
+                    android:text="@string/label_maps"
+                    android:textColor="#AECBFA" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Clima · hora · estado -->
+        <LinearLayout
+            android:id="@+id/weather"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/muted"
-            android:textSize="11sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/weather_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_cloud" />
+
+            <TextView
+                android:id="@+id/weather_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="--°"
+                android:textColor="@color/text"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:textColor="@color/text"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:textColor="@color/muted"
+                android:textSize="8sp" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/status_bt"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="14dp"
+            android:contentDescription="@string/bt_status"
+            android:src="@drawable/ic_bt_status" />
+
+        <ImageView
+            android:id="@+id/status_wifi"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="7dp"
+            android:contentDescription="@string/wifi_status"
+            android:src="@drawable/ic_wifi_off" />
     </LinearLayout>
 </LinearLayout>

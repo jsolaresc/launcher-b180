@@ -1,19 +1,37 @@
 package com.jsolaresc.launcher
 
+import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.Manifest
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.location.Location
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.InputType
+import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.PopupWindow
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -21,6 +39,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class MainActivity : Activity() {
 
@@ -28,31 +47,69 @@ class MainActivity : Activity() {
     private val locale = Locale("es", "AR")
     private val timeFormat = SimpleDateFormat("HH:mm", locale)
     private val dateFormat = SimpleDateFormat("EEEE d MMM", locale)
+    private val dialogTheme = android.R.style.Theme_Material_Dialog_Alert
 
+    // Reloj y estado
     private lateinit var clock: TextView
     private lateinit var date: TextView
-    private lateinit var dockClock: TextView
-    private lateinit var volume: SeekBar
-    private lateinit var audio: AudioManager
+    private lateinit var statusWifi: ImageView
+    private lateinit var weatherIcon: ImageView
+    private lateinit var weatherTemp: TextView
+
+    // Música
     private lateinit var music: Music
+    private lateinit var source: Source
+    private lateinit var sourceButton: View
+    private lateinit var sourceIcon: ImageView
+    private lateinit var musicSource: TextView
     private lateinit var playButton: ImageButton
     private lateinit var trackTitle: TextView
     private lateinit var trackArtist: TextView
-    private lateinit var musicSource: TextView
+    private lateinit var cover: ImageView
+    private lateinit var coverPlaceholder: ImageView
+    private lateinit var progressGroup: View
+    private lateinit var progress: ProgressBar
+    private lateinit var timeNow: TextView
+    private lateinit var timeTotal: TextView
+    private lateinit var volume: SeekBar
+    private lateinit var audio: AudioManager
+
+    // Mapa
     private lateinit var navMap: NavMap
     private lateinit var navBanner: View
     private lateinit var navIcon: ImageView
     private lateinit var navTitle: TextView
     private lateinit var navText: TextView
+    private lateinit var mapSearch: View
+    private lateinit var speedText: TextView
+    private lateinit var speedUnit: TextView
+    private lateinit var speedBadge: View
+    private lateinit var speedLimitView: TextView
+    private lateinit var speedGroup: View
+    private lateinit var mapButtons: View
+    private lateinit var pickCross: View
+    private lateinit var pickBar: View
+    private lateinit var speedLimit: SpeedLimit
+    private lateinit var weather: Weather
+    private var currentLimit: Int? = null
 
-    // Mantiene la barra al día si el volumen cambia con la perilla o el volante.
+    // Destinos
+    private lateinit var placesView: LinearLayout
+    private var places: MutableList<Place> = mutableListOf()
+    private val placeDetails = mutableListOf<TextView>()
+    /** -1: agregando uno nuevo; >= 0: moviendo ese; null: no se está eligiendo. */
+    private var pickingIndex: Int? = null
+
+    private var online = false
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
     private val volumeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             refreshVolume()
         }
     }
 
-    // Actualiza la hora justo al cambiar de minuto, sin despertar cada segundo.
+    // La hora se actualiza justo al cambiar de minuto.
     private val tick = object : Runnable {
         override fun run() {
             updateClock()
@@ -61,11 +118,41 @@ class MainActivity : Activity() {
         }
     }
 
+    // El progreso de la canción avanza de a un segundo mientras suena.
+    private val progressTick = object : Runnable {
+        override fun run() {
+            renderProgress()
+            if (music.isPlaying) handler.postDelayed(this, 1000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NavMap.configure(this)
         setContentView(R.layout.activity_main)
 
+        setupMap()
+        setupMusic()
+        setupDock()
+
+        placesView = findViewById(R.id.places)
+        places = Places.load(this)
+        renderPlaces()
+
+        clock = findViewById(R.id.clock)
+        date = findViewById(R.id.date)
+        statusWifi = findViewById(R.id.status_wifi)
+        weatherIcon = findViewById(R.id.weather_icon)
+        weatherTemp = findViewById(R.id.weather_temp)
+        weather = Weather { temp, icon ->
+            weatherTemp.text = "$temp°"
+            weatherIcon.setImageResource(icon)
+        }
+    }
+
+    // ---------- Mapa ----------
+
+    private fun setupMap() {
         val mapPanel = findViewById<View>(R.id.map_panel)
         mapPanel.clipToOutline = true
         navMap = NavMap(this, mapPanel)
@@ -73,46 +160,296 @@ class MainActivity : Activity() {
         navIcon = findViewById(R.id.nav_icon)
         navTitle = findViewById(R.id.nav_title)
         navText = findViewById(R.id.nav_text)
-        navBanner.setOnClickListener { Dock.open(this, Dock.MAPS, getString(R.string.label_maps)) }
-        findViewById<View>(R.id.btn_open_maps).setOnClickListener {
-            Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
-        }
+        mapSearch = findViewById(R.id.map_search)
+        speedText = findViewById(R.id.speed)
+        speedUnit = findViewById(R.id.speed_unit)
+        speedBadge = findViewById(R.id.speed_badge)
+        speedLimitView = findViewById(R.id.speed_limit)
+        speedGroup = findViewById(R.id.speed_group)
+        mapButtons = findViewById(R.id.map_buttons)
+        pickCross = findViewById(R.id.pick_cross)
+        pickBar = findViewById(R.id.pick_bar)
+
+        navBanner.setOnClickListener { openMaps() }
+        mapSearch.setOnClickListener { openMaps() }
+        findViewById<View>(R.id.btn_open_maps).setOnClickListener { openMaps() }
         findViewById<View>(R.id.map_status).setOnClickListener {
             if (!navMap.hasPermission()) requestLocation()
         }
-        if (!navMap.hasPermission()) requestLocation()
+        findViewById<View>(R.id.pick_cancel).setOnClickListener { endPick() }
+        findViewById<View>(R.id.pick_save).setOnClickListener { savePick() }
 
-        clock = findViewById(R.id.clock)
-        date = findViewById(R.id.date)
-        dockClock = findViewById(R.id.dock_clock)
-
-        bindDock(R.id.dock_maps, Dock.MAPS, getString(R.string.label_maps))
-        bindDock(R.id.dock_music, Dock.MUSIC, getString(R.string.label_music))
-        bindDock(R.id.dock_phone, Dock.PHONE, getString(R.string.label_phone))
-        bindDock(R.id.dock_radio, Dock.RADIO, getString(R.string.label_radio))
-        bindDock(R.id.dock_settings, Dock.SETTINGS, getString(R.string.label_settings))
-
-        findViewById<View>(R.id.dock_apps).setOnClickListener {
-            startActivity(Intent(this, AppsActivity::class.java))
+        speedLimit = SpeedLimit(this) { limit ->
+            currentLimit = limit
+            renderSpeed(navMap.lastFix)
         }
+        navMap.onLocation = { loc ->
+            renderSpeed(loc)
+            speedLimit.update(loc, online)
+            weather.update(loc, online)
+            renderPlaceDistances()
+        }
+
+        if (!navMap.hasPermission()) requestLocation()
+    }
+
+    private fun openMaps() = Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
+
+    private fun renderSpeed(loc: Location?) {
+        val fresh = loc != null && System.currentTimeMillis() - loc.time < 10_000 && loc.hasSpeed()
+        val kmh = if (fresh) (loc!!.speed * 3.6f).roundToInt() else null
+        speedText.text = kmh?.toString() ?: "--"
+
+        val limit = currentLimit
+        speedLimitView.visibility = if (limit != null) View.VISIBLE else View.GONE
+        speedLimitView.text = limit?.toString()
+
+        // Excedido (con 3 km/h de margen por la precisión del GPS): todo en rojo.
+        val over = limit != null && kmh != null && kmh > limit + 3
+        speedBadge.setBackgroundResource(if (over) R.drawable.bg_speed_over else R.drawable.bg_speed_dark)
+        val color = if (over) Color.parseColor("#F6AEA9") else getColor(R.color.text)
+        speedText.setTextColor(color)
+        speedUnit.setTextColor(if (over) color else getColor(R.color.muted))
+    }
+
+    private fun renderNav() {
+        val info = Nav.current
+        val picking = pickingIndex != null
+        if (info == null || picking) {
+            navBanner.visibility = View.GONE
+            mapSearch.visibility = if (picking) View.GONE else View.VISIBLE
+            return
+        }
+        mapSearch.visibility = View.GONE
+        navBanner.visibility = View.VISIBLE
+        navTitle.text = info.title ?: info.text
+        val detail = listOfNotNull(info.text.takeIf { info.title != null }, info.sub)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+        navText.text = detail
+        navText.visibility = if (detail.isEmpty()) View.GONE else View.VISIBLE
+        if (info.icon != null) {
+            navIcon.setImageBitmap(info.icon)
+            navIcon.visibility = View.VISIBLE
+        } else {
+            navIcon.visibility = View.GONE
+        }
+    }
+
+    private fun requestLocation() {
+        requestPermissions(
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            1
+        )
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        navMap.stop()
+        navMap.start()
+    }
+
+    // ---------- Destinos rápidos ----------
+
+    private fun renderPlaces() {
+        placesView.removeAllViews()
+        placeDetails.clear()
+        val gap = (6 * resources.displayMetrics.density).toInt()
+        var addShown = false
+        for (row in 0 until 2) {
+            val rowView = LinearLayout(this)
+            rowView.orientation = LinearLayout.HORIZONTAL
+            val rowParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+            if (row == 1) rowParams.topMargin = gap
+            placesView.addView(rowView, rowParams)
+
+            for (col in 0 until 2) {
+                val index = row * 2 + col
+                val tile = LayoutInflater.from(this).inflate(R.layout.item_place, rowView, false)
+                val params = tile.layoutParams as LinearLayout.LayoutParams
+                if (col == 1) params.marginStart = gap
+                val name = tile.findViewById<TextView>(R.id.place_name)
+                val icon = tile.findViewById<ImageView>(R.id.place_icon)
+                val detail = tile.findViewById<TextView>(R.id.place_detail)
+
+                val place = places.getOrNull(index)
+                when {
+                    place != null -> {
+                        name.text = place.name
+                        icon.setImageResource(place.iconRes)
+                        detail.tag = place
+                        placeDetails.add(detail)
+                        tile.setOnClickListener { navigateTo(place) }
+                        tile.setOnLongClickListener {
+                            placeOptions(index)
+                            true
+                        }
+                    }
+                    !addShown -> {
+                        addShown = true
+                        tile.setBackgroundResource(R.drawable.bg_tile_add)
+                        (tile as LinearLayout).gravity = Gravity.CENTER
+                        name.text = getString(R.string.add_place)
+                        name.setTextColor(getColor(R.color.muted))
+                        name.textAlignment = View.TEXT_ALIGNMENT_CENTER
+                        icon.setImageResource(R.drawable.ic_plus)
+                        detail.visibility = View.GONE
+                        tile.setOnClickListener { startPick(-1) }
+                    }
+                    else -> tile.visibility = View.INVISIBLE
+                }
+                rowView.addView(tile, params)
+            }
+        }
+        renderPlaceDistances()
+    }
+
+    private fun renderPlaceDistances() {
+        val here = navMap.lastFix
+        for (detail in placeDetails) {
+            val place = detail.tag as? Place ?: continue
+            if (here == null) {
+                detail.text = "—"
+                continue
+            }
+            val result = FloatArray(1)
+            Location.distanceBetween(here.latitude, here.longitude, place.lat, place.lon, result)
+            val meters = result[0]
+            detail.text = if (meters < 1000) "${(meters / 10).roundToInt() * 10} m"
+            else String.format(locale, "%.1f km", meters / 1000)
+        }
+    }
+
+    private fun navigateTo(place: Place) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${place.lat},${place.lon}"))
+            .setPackage("com.google.android.apps.maps")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.place_no_maps, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun placeOptions(index: Int) {
+        val place = places[index]
+        val options = arrayOf(
+            getString(R.string.place_rename),
+            getString(R.string.place_move),
+            getString(R.string.place_delete)
+        )
+        AlertDialog.Builder(this, dialogTheme)
+            .setTitle(place.name)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> askName(place.name) { name ->
+                        places[index] = place.copy(name = name)
+                        savePlaces()
+                    }
+                    1 -> startPick(index)
+                    2 -> {
+                        places.removeAt(index)
+                        savePlaces()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun startPick(index: Int) {
+        pickingIndex = index
+        navMap.setPicking(true)
+        pickCross.visibility = View.VISIBLE
+        pickBar.visibility = View.VISIBLE
+        speedGroup.visibility = View.GONE
+        mapButtons.visibility = View.GONE
+        renderNav()
+    }
+
+    private fun endPick() {
+        pickingIndex = null
+        navMap.setPicking(false)
+        pickCross.visibility = View.GONE
+        pickBar.visibility = View.GONE
+        speedGroup.visibility = View.VISIBLE
+        mapButtons.visibility = View.VISIBLE
+        renderNav()
+    }
+
+    private fun savePick() {
+        val index = pickingIndex ?: return
+        val point = navMap.center
+        endPick()
+        if (index >= 0) {
+            places[index] = places[index].copy(lat = point.latitude, lon = point.longitude)
+            savePlaces()
+        } else {
+            askName("") { name ->
+                places.add(Place(name, point.latitude, point.longitude))
+                savePlaces()
+            }
+        }
+    }
+
+    private fun askName(current: String, onName: (String) -> Unit) {
+        val input = EditText(this)
+        input.setText(current)
+        input.hint = getString(R.string.place_name_hint)
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        input.setSingleLine()
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val container = FrameLayout(this)
+        container.setPadding(pad, pad / 2, pad, 0)
+        container.addView(input)
+        AlertDialog.Builder(this, dialogTheme)
+            .setTitle(R.string.place_name_title)
+            .setView(container)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) onName(name)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun savePlaces() {
+        Places.save(this, places)
+        renderPlaces()
+    }
+
+    // ---------- Música ----------
+
+    private fun setupMusic() {
+        sourceButton = findViewById(R.id.source_button)
+        sourceIcon = findViewById(R.id.source_icon)
+        musicSource = findViewById(R.id.music_source)
         playButton = findViewById(R.id.btn_play)
         trackTitle = findViewById(R.id.track_title)
         trackArtist = findViewById(R.id.track_artist)
-        musicSource = findViewById(R.id.music_source)
-        music = Music(this) { runOnUiThread { renderMusic() } }
+        cover = findViewById(R.id.cover)
+        coverPlaceholder = findViewById(R.id.cover_placeholder)
+        progressGroup = findViewById(R.id.progress_group)
+        progress = findViewById(R.id.progress)
+        timeNow = findViewById(R.id.time_now)
+        timeTotal = findViewById(R.id.time_total)
 
-        findViewById<View>(R.id.music_card).setOnClickListener {
-            if (!music.hasAccess()) requestAccess()
-            else Dock.open(this, Dock.MUSIC, getString(R.string.label_music))
-        }
-        // Mantener apretada la tarjeta: muestra qué sesiones de música ve el launcher.
-        findViewById<View>(R.id.music_card).setOnLongClickListener {
+        source = Sources.selected(this)
+        music = Music(this) { runOnUiThread { renderMusic() } }
+        music.preferredPackage = source.sessionPackage
+
+        sourceButton.setOnClickListener { showSourceMenu() }
+        findViewById<View>(R.id.track_row).setOnClickListener { openSource() }
+        // Mantener apretada la canción: muestra qué sesiones de música ve el launcher.
+        findViewById<View>(R.id.track_row).setOnLongClickListener {
             Toast.makeText(this, music.describeSessions(), Toast.LENGTH_LONG).show()
             true
         }
 
         findViewById<View>(R.id.btn_prev).setOnClickListener {
-            if (!music.hasAccess()) requestAccess() else music.previous()
+            if (!music.hasAccess()) requestAccess() else if (!music.previous()) startSource()
+        }
+        findViewById<View>(R.id.btn_next).setOnClickListener {
+            if (!music.hasAccess()) requestAccess() else if (!music.next()) startSource()
         }
         playButton.setOnClickListener {
             if (!music.hasAccess()) {
@@ -121,16 +458,13 @@ class MainActivity : Activity() {
             }
             when (music.playPause()) {
                 Music.PlayResult.DONE -> {}
-                Music.PlayResult.NEEDS_SOURCE -> activateBtSource()
+                Music.PlayResult.NEEDS_SOURCE -> startSource()
                 // Si el estéreo no tenía la fuente BT activa, el celular arranca y se
                 // vuelve a pausar: en ese caso, activarla.
                 Music.PlayResult.VERIFY -> handler.postDelayed({
-                    if (!music.isPlaying) activateBtSource()
+                    if (!music.isPlaying && source.isBluetooth) activateBtSource()
                 }, 1500)
             }
-        }
-        findViewById<View>(R.id.btn_next).setOnClickListener {
-            if (!music.hasAccess()) requestAccess() else music.next()
         }
 
         audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -145,6 +479,114 @@ class MainActivity : Activity() {
         })
         findViewById<View>(R.id.vol_down).setOnClickListener { stepVolume(AudioManager.ADJUST_LOWER) }
         findViewById<View>(R.id.vol_up).setOnClickListener { stepVolume(AudioManager.ADJUST_RAISE) }
+    }
+
+    /** Pone a sonar la fuente elegida: el Bluetooth se activa solo; el resto se abre. */
+    private fun startSource() {
+        if (source.isBluetooth) activateBtSource() else openSource()
+    }
+
+    private fun openSource() {
+        val intent = Sources.openIntent(this, source) ?: return
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun selectSource(newSource: Source) {
+        source = newSource
+        Sources.select(this, newSource.id)
+        music.preferredPackage = newSource.sessionPackage
+        renderMusic()
+        startSource()
+    }
+
+    private fun showSourceMenu() {
+        val density = resources.displayMetrics.density
+        val menu = LinearLayout(this)
+        menu.orientation = LinearLayout.VERTICAL
+        menu.setBackgroundResource(R.drawable.bg_menu)
+        val pad = (5 * density).toInt()
+        menu.setPadding(pad, pad, pad, pad)
+        menu.elevation = 12 * density
+
+        val popup = PopupWindow(menu, sourceButton.width + (16 * density).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        popup.elevation = 12 * density
+
+        val title = TextView(this)
+        title.text = getString(R.string.source_title)
+        title.setTextColor(getColor(R.color.muted))
+        title.textSize = 9f
+        title.setPadding((8 * density).toInt(), (6 * density).toInt(), 0, (6 * density).toInt())
+        menu.addView(title)
+
+        for (item in Sources.all(this)) {
+            val row = LayoutInflater.from(this).inflate(R.layout.item_source, menu, false)
+            bindSourceIcon(row.findViewById(R.id.source_item_icon), item)
+            row.findViewById<TextView>(R.id.source_item_name).text = item.name
+            row.findViewById<TextView>(R.id.source_item_detail).text = item.detail
+            val selected = item.id == source.id
+            row.isSelected = selected
+            row.findViewById<View>(R.id.source_item_check).visibility = if (selected) View.VISIBLE else View.INVISIBLE
+            row.setOnClickListener {
+                popup.dismiss()
+                selectSource(item)
+            }
+            val pkg = item.appPackage
+            if (pkg != null) {
+                row.setOnLongClickListener {
+                    popup.dismiss()
+                    AlertDialog.Builder(this, dialogTheme)
+                        .setMessage(getString(R.string.source_remove, item.name))
+                        .setPositiveButton(R.string.remove) { _, _ ->
+                            Sources.removeApp(this, pkg)
+                            source = Sources.selected(this)
+                            music.preferredPackage = source.sessionPackage
+                            renderMusic()
+                        }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
+                    true
+                }
+            }
+            menu.addView(row)
+        }
+
+        val add = TextView(this)
+        add.text = "+  " + getString(R.string.source_add)
+        add.setTextColor(getColor(R.color.muted))
+        add.textSize = 10f
+        add.gravity = Gravity.CENTER_VERTICAL
+        add.setBackgroundResource(R.drawable.bg_header)
+        add.setPadding((10 * density).toInt(), 0, 0, 0)
+        add.setOnClickListener {
+            popup.dismiss()
+            startActivity(
+                Intent(this, AppsActivity::class.java)
+                    .putExtra(AppsActivity.EXTRA_PICK_KEY, AppsActivity.PICK_MUSIC_APP)
+                    .putExtra(AppsActivity.EXTRA_PICK_LABEL, getString(R.string.label_music))
+            )
+        }
+        menu.addView(add, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (34 * density).toInt()))
+
+        popup.showAsDropDown(sourceButton, -(8 * density).toInt(), -sourceButton.height)
+    }
+
+    private fun bindSourceIcon(view: ImageView, item: Source) {
+        if (item.iconRes != null) {
+            val circle = GradientDrawable()
+            circle.shape = GradientDrawable.OVAL
+            circle.setColor(item.color)
+            view.background = circle
+            view.setImageResource(item.iconRes)
+        } else {
+            view.background = null
+            view.setPadding(0, 0, 0, 0)
+            view.setImageDrawable(Sources.appIcon(this, item))
+        }
     }
 
     /**
@@ -175,41 +617,6 @@ class MainActivity : Activity() {
         }, 1200)
     }
 
-    private fun requestLocation() {
-        requestPermissions(
-            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-            1
-        )
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        navMap.stop()
-        navMap.start()
-    }
-
-    private fun renderNav() {
-        val info = Nav.current
-        if (info == null) {
-            navBanner.visibility = View.GONE
-            return
-        }
-        navBanner.visibility = View.VISIBLE
-        navTitle.text = info.title ?: info.text
-        val detail = listOfNotNull(
-            info.text.takeIf { info.title != null },
-            info.sub
-        ).filter { it.isNotBlank() }.joinToString(" · ")
-        navText.text = detail
-        navText.visibility = if (detail.isEmpty()) View.GONE else View.VISIBLE
-        if (info.icon != null) {
-            navIcon.setImageBitmap(info.icon)
-            navIcon.visibility = View.VISIBLE
-        } else {
-            navIcon.visibility = View.GONE
-        }
-    }
-
     private fun requestAccess() {
         Toast.makeText(this, R.string.grant_access, Toast.LENGTH_LONG).show()
         try {
@@ -220,18 +627,60 @@ class MainActivity : Activity() {
     }
 
     private fun renderMusic() {
-        if (!music.hasAccess()) {
-            musicSource.text = getString(R.string.music_source)
-            trackTitle.text = getString(R.string.music_no_access_title)
-            trackArtist.text = getString(R.string.music_no_access)
-            playButton.setImageResource(R.drawable.ic_play)
+        bindSourceIcon(sourceIcon, source)
+        sourceIcon.setPadding(
+            if (source.iconRes != null) (3 * resources.displayMetrics.density).toInt() else 0,
+            if (source.iconRes != null) (3 * resources.displayMetrics.density).toInt() else 0,
+            if (source.iconRes != null) (3 * resources.displayMetrics.density).toInt() else 0,
+            if (source.iconRes != null) (3 * resources.displayMetrics.density).toInt() else 0
+        )
+        musicSource.text = if (source.isBluetooth) "Bluetooth · celular" else source.name
+
+        val art = music.art
+        cover.visibility = if (art != null) View.VISIBLE else View.GONE
+        coverPlaceholder.visibility = if (art != null) View.GONE else View.VISIBLE
+        if (art != null) cover.setImageBitmap(art)
+
+        when {
+            !music.hasAccess() -> {
+                trackTitle.text = getString(R.string.music_no_access_title)
+                trackArtist.text = getString(R.string.music_no_access)
+            }
+            music.hasSession -> {
+                trackTitle.text = music.title?.takeIf { it.isNotBlank() } ?: source.name
+                trackArtist.text = music.artist?.takeIf { it.isNotBlank() } ?: music.stateName
+            }
+            source.sessionPackage == null -> {
+                trackTitle.text = source.name
+                trackArtist.text = getString(R.string.source_open_hint)
+            }
+            else -> {
+                trackTitle.text = getString(R.string.music_idle_title)
+                trackArtist.text = getString(R.string.music_idle_hint)
+            }
+        }
+        playButton.setImageResource(if (music.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+
+        handler.removeCallbacks(progressTick)
+        handler.post(progressTick)
+    }
+
+    private fun renderProgress() {
+        val duration = music.duration
+        if (!music.hasSession || duration <= 0) {
+            progressGroup.visibility = View.GONE
             return
         }
-        val source = if (music.source == Music.BT_PACKAGE) "Bluetooth" else (music.source ?: "Bluetooth")
-        musicSource.text = "$source · ${music.stateName}"
-        trackTitle.text = music.title?.takeIf { it.isNotBlank() } ?: getString(R.string.music_idle_title)
-        trackArtist.text = music.artist?.takeIf { it.isNotBlank() } ?: getString(R.string.music_idle_hint)
-        playButton.setImageResource(if (music.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+        progressGroup.visibility = View.VISIBLE
+        val pos = music.position()
+        progress.progress = (pos * 1000 / duration).toInt()
+        timeNow.text = formatTime(pos)
+        timeTotal.text = formatTime(duration)
+    }
+
+    private fun formatTime(ms: Long): String {
+        val total = ms / 1000
+        return String.format(locale, "%d:%02d", total / 60, total % 60)
     }
 
     private fun stepVolume(direction: Int) {
@@ -241,6 +690,18 @@ class MainActivity : Activity() {
 
     private fun refreshVolume() {
         volume.progress = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+    }
+
+    // ---------- Dock, reloj y conexión ----------
+
+    private fun setupDock() {
+        findViewById<View>(R.id.dock_apps).setOnClickListener {
+            startActivity(Intent(this, AppsActivity::class.java))
+        }
+        bindDock(R.id.dock_radio, Dock.RADIO, getString(R.string.label_radio))
+        bindDock(R.id.dock_phone, Dock.PHONE, getString(R.string.label_phone))
+        bindDock(R.id.dock_maps, Dock.MAPS, getString(R.string.label_maps))
+        findViewById<View>(R.id.dock_music).setOnClickListener { openSource() }
     }
 
     private fun bindDock(viewId: Int, key: String, label: String) {
@@ -255,10 +716,52 @@ class MainActivity : Activity() {
 
     private fun updateClock() {
         val now = Date()
-        val time = timeFormat.format(now)
-        clock.text = time
-        dockClock.text = time
+        clock.text = timeFormat.format(now)
         date.text = dateFormat.format(now)
+    }
+
+    private fun setOnline(value: Boolean) {
+        online = value
+        statusWifi.setImageResource(if (value) R.drawable.ic_wifi else R.drawable.ic_wifi_off)
+        navMap.offline = !value
+        if (!value) {
+            weatherTemp.text = "--°"
+            weatherIcon.setImageResource(R.drawable.ic_cloud)
+        } else {
+            weather.update(navMap.lastFix, true)
+        }
+    }
+
+    private fun watchNetwork() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+        setOnline(caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true)
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                val ok = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                runOnUiThread { setOnline(ok) }
+            }
+
+            override fun onLost(network: Network) {
+                runOnUiThread { setOnline(false) }
+            }
+        }
+        try {
+            cm.registerDefaultNetworkCallback(callback)
+            networkCallback = callback
+        } catch (e: Exception) {
+        }
+    }
+
+    private fun unwatchNetwork() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        networkCallback?.let {
+            try {
+                cm.unregisterNetworkCallback(it)
+            } catch (e: Exception) {
+            }
+        }
+        networkCallback = null
     }
 
     override fun onResume() {
@@ -266,24 +769,34 @@ class MainActivity : Activity() {
         handler.removeCallbacks(tick)
         handler.post(tick)
         refreshVolume()
+        registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"))
+
+        // La fuente pudo cambiar desde la lista de apps ("Agregar otra app de música").
+        source = Sources.selected(this)
+        music.preferredPackage = source.sessionPackage
         music.start()
+
+        watchNetwork()
         navMap.start()
         Nav.listener = { runOnUiThread { renderNav() } }
         renderNav()
-        registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"))
+        renderPlaceDistances()
     }
 
     override fun onPause() {
         handler.removeCallbacks(tick)
+        handler.removeCallbacks(progressTick)
         unregisterReceiver(volumeReceiver)
         music.stop()
+        unwatchNetwork()
         navMap.stop()
         Nav.listener = null
         super.onPause()
     }
 
-    // Es la pantalla de inicio: "atrás" no tiene a dónde volver.
+    // Es la pantalla de inicio: "atrás" cancela la elección de lugar y nada más.
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (pickingIndex != null) endPick()
     }
 }

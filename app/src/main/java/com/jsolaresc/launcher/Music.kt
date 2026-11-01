@@ -2,16 +2,19 @@ package com.jsolaresc.launcher
 
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.SystemClock
 import android.provider.Settings
 
 /**
- * Controla directamente la sesión de música activa (la del Bluetooth del
- * estéreo, com.android.bluetooth), igual que Dashline. Nunca manda teclas
- * multimedia genéricas: en este estéreo las toma otro reproductor y pausa el BT.
+ * Controla directamente la sesión de música de la fuente elegida (por ejemplo,
+ * la del Bluetooth del estéreo, com.android.bluetooth), igual que Dashline.
+ * Nunca manda teclas multimedia genéricas: en este estéreo las toma otro
+ * reproductor y pausa el Bluetooth.
  */
 class Music(private val ctx: Context, private val onChange: () -> Unit) {
 
@@ -23,6 +26,13 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
     private val manager = ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
     private var controller: MediaController? = null
     private var listening = false
+
+    /** Paquete de la fuente elegida. Si es null, no hay sesión que controlar (USB, radio). */
+    var preferredPackage: String? = BT_PACKAGE
+        set(value) {
+            field = value
+            pickSession()
+        }
 
     private val callback = object : MediaController.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackState?) = onChange()
@@ -48,7 +58,6 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
             manager.addOnActiveSessionsChangedListener(sessionsListener, listener)
             listening = true
         } catch (e: SecurityException) {
-            // El permiso se acaba de revocar.
         }
         pickSession()
     }
@@ -60,16 +69,14 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
         controller = null
     }
 
-    /** Prioridad: la que está sonando > la del Bluetooth > la primera. */
     private fun pickSession() {
         val sessions = try {
             manager.getActiveSessions(listener)
         } catch (e: SecurityException) {
             emptyList()
         }
-        val chosen = sessions.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
-            ?: sessions.firstOrNull { it.packageName == BT_PACKAGE }
-            ?: sessions.firstOrNull()
+        val pkg = preferredPackage
+        val chosen = if (pkg == null) null else sessions.firstOrNull { it.packageName == pkg }
 
         if (chosen?.sessionToken != controller?.sessionToken) {
             controller?.unregisterCallback(callback)
@@ -80,7 +87,6 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
     }
 
     val hasSession get() = controller != null
-    val source: String? get() = controller?.packageName
 
     val isPlaying: Boolean
         get() = when (controller?.playbackState?.state) {
@@ -96,6 +102,29 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
             it.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: it.getString(MediaMetadata.METADATA_KEY_ALBUM)
         }
 
+    /** Portada, si la fuente la manda (las apps del estéreo sí; el Bluetooth de este estéreo, no). */
+    val art: Bitmap?
+        get() = controller?.metadata?.let {
+            it.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                ?: it.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                ?: it.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+        }
+
+    /** Duración en ms; 0 si la fuente no la informa. */
+    val duration: Long get() = controller?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+
+    /** Posición estimada en ms, avanzando entre actualizaciones. */
+    fun position(): Long {
+        val state = controller?.playbackState ?: return 0L
+        var pos = state.position
+        if (pos < 0) return 0L
+        if (state.state == PlaybackState.STATE_PLAYING && state.lastPositionUpdateTime > 0) {
+            pos += ((SystemClock.elapsedRealtime() - state.lastPositionUpdateTime) * state.playbackSpeed).toLong()
+        }
+        val d = duration
+        return if (d > 0) pos.coerceIn(0, d) else pos
+    }
+
     val stateName: String
         get() = when (controller?.playbackState?.state) {
             PlaybackState.STATE_PLAYING -> "reproduciendo"
@@ -110,11 +139,9 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
         }
 
     /**
-     * Qué hacer al tocar Play/Pausa:
      * - sonando: pausa directo;
-     * - en pausa con la fuente BT activa: play directo;
-     * - detenida, sin sesión o con otra fuente activa: hay que activar la fuente BT.
-     * Devuelve true si hace falta activar la fuente (o verificar que arrancó).
+     * - en pausa: play directo, y hay que verificar que arranque;
+     * - detenida o sin sesión: hay que activar la fuente.
      */
     fun playPause(): PlayResult {
         val c = controller ?: return PlayResult.NEEDS_SOURCE
@@ -131,8 +158,17 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
 
     enum class PlayResult { DONE, VERIFY, NEEDS_SOURCE }
 
-    fun next() = controller?.transportControls?.skipToNext()
-    fun previous() = controller?.transportControls?.skipToPrevious()
+    fun next(): Boolean {
+        val c = controller ?: return false
+        c.transportControls.skipToNext()
+        return true
+    }
+
+    fun previous(): Boolean {
+        val c = controller ?: return false
+        c.transportControls.skipToPrevious()
+        return true
+    }
 
     /** Para diagnóstico: todas las sesiones que ve el launcher. */
     fun describeSessions(): String {

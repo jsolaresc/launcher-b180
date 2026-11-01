@@ -25,7 +25,6 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Overlay
 import java.io.File
-import kotlin.math.roundToInt
 
 /**
  * Mapa propio: posición y rumbo por GPS, velocidad y seguimiento.
@@ -66,15 +65,40 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     }
 
     private val map: MapView = root.findViewById(R.id.map)
-    private val speedText: TextView = root.findViewById(R.id.speed)
     private val statusText: TextView = root.findViewById(R.id.map_status)
     private val recenter: View = root.findViewById(R.id.btn_recenter)
     private val locationManager = activity.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private val me = MeOverlay()
 
     private var follow = true
-    private var lastFix: Location? = null
+    var lastFix: Location? = null
+        private set
     private var running = false
+    private var gpsStatus: String? = null
+
+    /** Cada ubicación nueva (para velocidad, máxima, distancias y clima). */
+    var onLocation: ((Location) -> Unit)? = null
+
+    /** Sin internet: el mapa usa lo guardado y se avisa. */
+    var offline = false
+        set(value) {
+            field = value
+            renderStatus()
+        }
+
+    /** Centro del mapa, para guardar un lugar. */
+    val center: GeoPoint get() = map.mapCenter as GeoPoint
+
+    /** Mientras se elige un lugar, el mapa no sigue al auto. */
+    fun setPicking(picking: Boolean) {
+        if (picking) {
+            follow = false
+            recenter.visibility = View.GONE
+        } else {
+            follow = true
+            lastFix?.let { map.controller.setCenter(GeoPoint(it.latitude, it.longitude)) }
+        }
+    }
 
     init {
         map.setTileSource(DARK_TILES)
@@ -152,22 +176,27 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     }
 
     private fun showStatus(text: String?) {
+        gpsStatus = text
+        renderStatus()
+    }
+
+    private fun renderStatus() {
+        val text = gpsStatus ?: if (offline) activity.getString(R.string.offline) else null
         statusText.text = text
         statusText.visibility = if (text == null) View.GONE else View.VISIBLE
     }
 
     override fun onLocationChanged(location: Location) {
-        val fresh = System.currentTimeMillis() - location.time < 10_000
         lastFix = location
         me.point = GeoPoint(location.latitude, location.longitude)
         // El rumbo del GPS solo es confiable en movimiento.
         if (location.hasBearing() && location.hasSpeed() && location.speed > 1.5f) me.bearing = location.bearing
 
-        speedText.text = if (fresh && location.hasSpeed()) (location.speed * 3.6f).roundToInt().toString() else "--"
         if (location.provider == LocationManager.GPS_PROVIDER) showStatus(null)
 
         if (follow) map.controller.setCenter(me.point)
         map.invalidate()
+        onLocation?.invoke(location)
     }
 
     override fun onProviderEnabled(provider: String) {
