@@ -17,8 +17,9 @@ ZOOM_MIN, ZOOM_MAX = 10, 16
 # (norte, este, sur, oeste), igual que SettingsActivity.AMBA
 AMBA = [
     (-34.52, -58.33, -34.71, -58.54),  # CABA
-    (-34.64, -57.90, -34.96, -58.42),  # Zona Sur hasta La Plata
-    (-34.56, -58.50, -34.72, -58.82),  # Zona Oeste hasta Moreno
+    (-34.36, -58.44, -34.54, -58.95),  # Zona Norte: Vicente López, San Isidro, Tigre, Escobar, Pilar
+    (-34.54, -58.50, -34.80, -58.95),  # Zona Oeste: Morón, La Matanza, Moreno, Gral. Rodríguez
+    (-34.64, -57.88, -35.00, -58.50),  # Zona Sur: Avellaneda, Quilmes, Ezeiza, La Plata
 ]
 
 SOURCES = {

@@ -209,16 +209,17 @@ class SettingsActivity : Activity() {
         private const val AMBA_ID = "amba"
         private const val AROUND_ID = "around"
 
-        /** CABA, Zona Sur hasta La Plata y Zona Oeste hasta Moreno (rectángulos que se pisan poco). */
+        /** CABA y Zonas Norte, Oeste y Sur (igual que tools/offline_map.py, el mapa para USB). */
         private val AMBA = listOf(
             BoundingBox(-34.52, -58.33, -34.71, -58.54),
-            BoundingBox(-34.64, -57.90, -34.96, -58.42),
-            BoundingBox(-34.56, -58.50, -34.72, -58.82)
+            BoundingBox(-34.36, -58.44, -34.54, -58.95),
+            BoundingBox(-34.54, -58.50, -34.80, -58.95),
+            BoundingBox(-34.64, -57.88, -35.00, -58.50)
         )
 
-        // Peso promedio de una tesela urbana, medido a ojo sobre CARTO: la oscura pesa menos.
-        private const val KB_DARK = 9
-        private const val KB_LIGHT = 20
+        // Peso promedio de una tesela, medido con el mapa del AMBA (~8 KB las dos juntas).
+        private const val KB_DARK = 3
+        private const val KB_LIGHT = 5
     }
 
     private fun setupOfflineMap() {

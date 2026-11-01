@@ -104,7 +104,7 @@
     <string name="offline_radius">%1$d km</string>
     <string name="offline_less">Menos kilómetros</string>
     <string name="offline_more">Más kilómetros</string>
-    <string name="offline_amba">AMBA: CABA, Zona Sur hasta La Plata y Zona Oeste hasta Moreno</string>
+    <string name="offline_amba">AMBA: CABA, Zona Norte hasta Pilar, Oeste hasta Gral. Rodríguez y Sur hasta La Plata</string>
     <string name="offline_download_amba">Descargar AMBA</string>
     <string name="offline_estimate">Unos %1$d MB</string>
     <string name="offline_download">Descargar</string>
