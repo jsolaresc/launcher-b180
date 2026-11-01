@@ -237,9 +237,9 @@ class SettingsActivity : Activity() {
             BoundingBox(-34.64, -57.88, -35.00, -58.50)
         )
 
-        // Peso promedio de una tesela, medido con el mapa del AMBA (~8 KB las dos juntas).
-        private const val KB_DARK = 3
-        private const val KB_LIGHT = 5
+        // Peso promedio de una tesela, medido con el mapa del AMBA (~12 KB las dos juntas).
+        private const val KB_DARK = 4
+        private const val KB_LIGHT = 8
     }
 
     private fun setupOfflineMap() {
