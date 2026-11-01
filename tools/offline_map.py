@@ -25,8 +25,8 @@ AMBA = [
 
 # Nombres iguales a NavMap.DARK_TILES / LIGHT_TILES.
 SOURCES = {
-    "CartoDark2": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-    "CartoVoyager2": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+    "CartoDark2": "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    "CartoVoyager2": "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
 }
 
 # Clave gratuita de CARTO: sin ella las teselas traen la marca "API KEY REQUIRED".
@@ -73,7 +73,7 @@ def fetch(url):
 
 def main(out):
     if not KEY:
-        sys.exit("Falta la clave de CARTO (carto.key)")
+        sys.exit("Falta la clave de CARTO (secreto CARTO_KEY del repo)")
     db = sqlite3.connect(out)
     db.execute(
         "CREATE TABLE IF NOT EXISTS tiles (key INTEGER, provider TEXT, tile BLOB, expires INTEGER, "
@@ -84,8 +84,7 @@ def main(out):
 
     def work(job):
         name, url, z, x, y = job
-        sub = "abcd"[(x + y) % 4]
-        u = url.format(s=sub, z=z, x=x, y=y)
+        u = url.format(z=z, x=x, y=y)
         return job, fetch(u + "?key=" + KEY if KEY else u)
 
     done = failed = 0

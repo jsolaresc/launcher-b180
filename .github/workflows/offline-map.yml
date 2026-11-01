@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Descargar el AMBA
+        env:
+          CARTO_KEY: ${{ secrets.CARTO_KEY }}
         run: python3 tools/offline_map.py mapa-amba.sqlite
 
       - name: Tamaño

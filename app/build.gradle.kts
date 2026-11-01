@@ -6,7 +6,7 @@ plugins {
 // Cada compilación en GitHub suma 1 a la versión, así el estéreo acepta la actualización.
 val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 
-// Clave gratuita de CARTO para las teselas del mapa (carto.key en la raíz del repo).
+// Clave gratuita de CARTO para las teselas del mapa (secreto CARTO_KEY en GitHub).
 val cartoKey = (System.getenv("CARTO_KEY") ?: rootProject.file("carto.key").takeIf { it.exists() }?.readText() ?: "").trim()
 
 android {

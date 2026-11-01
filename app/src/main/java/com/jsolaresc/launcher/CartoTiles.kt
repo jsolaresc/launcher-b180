@@ -8,11 +8,12 @@ import java.util.concurrent.Executors
 /**
  * Teselas de CARTO (datos de OpenStreetMap). Desde 2026 CARTO pide una clave
  * gratuita: sin ella las teselas vienen con la marca "API KEY REQUIRED".
- * La clave se toma al compilar (archivo carto.key en la raíz del repo).
+ * La clave se toma al compilar, del secreto CARTO_KEY del repo en GitHub.
  */
 class CartoTiles(name: String, private val style: String) : XYTileSource(
     name, 0, 19, 256, ".png",
-    arrayOf("a", "b", "c", "d").map { "https://$it.basemaps.cartocdn.com/$style/" }.toTypedArray(),
+    // Con clave, CARTO indica el dominio sin subdominios (a., b., …).
+    arrayOf("https://basemaps.cartocdn.com/$style/"),
     "© OpenStreetMap · © CARTO"
 ) {
     override fun getTileURLString(index: Long): String {
