@@ -118,6 +118,53 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- Aviso de fotomulta -->
+            <LinearLayout
+                android:id="@+id/camera_alert"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_gravity="top|end"
+                android:layout_margin="10dp"
+                android:background="@drawable/bg_alert"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="5dp"
+                android:paddingEnd="12dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:background="@drawable/bg_alert_icon"
+                    android:importantForAccessibility="no"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_camera_dark" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/camera_alert_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:textColor="#FDD663"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/camera_alert_detail"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:textColor="#E8D9A8"
+                        android:textSize="9sp" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- Estado del GPS / sin conexión -->
             <TextView
                 android:id="@+id/map_status"
@@ -254,6 +301,17 @@
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_recenter"
                     android:visibility="gone" />
+
+                <ImageButton
+                    android:id="@+id/btn_alerts"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/bg_map_button"
+                    android:contentDescription="@string/alerts_sound"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_bell" />
 
                 <ImageButton
                     android:id="@+id/btn_open_maps"

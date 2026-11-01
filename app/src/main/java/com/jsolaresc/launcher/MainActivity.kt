@@ -35,6 +35,7 @@ import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import org.osmdroid.views.MapView
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -92,6 +93,22 @@ class MainActivity : Activity() {
     private lateinit var speedLimit: SpeedLimit
     private lateinit var weather: Weather
     private var currentLimit: Int? = null
+    private lateinit var cameras: Cameras
+    private lateinit var cameraAlert: View
+    private lateinit var cameraAlertTitle: TextView
+    private lateinit var cameraAlertDetail: TextView
+    private lateinit var btnAlerts: ImageButton
+    private var alertVisible = false
+
+    // Servicio del estéreo: USB, radio y fuente activa.
+    private lateinit var ts: TsCommon
+    private var tsMode: Int? = null
+    private var tsTitle: String? = null
+    private var tsPlaying = false
+    private var tsCur = 0
+    private var tsTotal = 0
+    private var radioFreq: String? = null
+    private var radioBand: String? = null
 
     // Destinos
     private lateinit var placesView: LinearLayout
@@ -118,6 +135,14 @@ class MainActivity : Activity() {
         }
     }
 
+    // USB y radio no tienen sesión de música: se consulta al estéreo cada segundo.
+    private val tsTick = object : Runnable {
+        override fun run() {
+            pollTs()
+            handler.postDelayed(this, 1000)
+        }
+    }
+
     // El progreso de la canción avanza de a un segundo mientras suena.
     private val progressTick = object : Runnable {
         override fun run() {
@@ -130,6 +155,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         NavMap.configure(this)
         setContentView(R.layout.activity_main)
+        ts = TsCommon(this)
+        ts.connect()
 
         setupMap()
         setupMusic()
@@ -183,8 +210,21 @@ class MainActivity : Activity() {
             currentLimit = limit
             renderSpeed(navMap.lastFix)
         }
+        cameraAlert = findViewById(R.id.camera_alert)
+        cameraAlertTitle = findViewById(R.id.camera_alert_title)
+        cameraAlertDetail = findViewById(R.id.camera_alert_detail)
+        btnAlerts = findViewById(R.id.btn_alerts)
+        cameras = Cameras(this, findViewById<MapView>(R.id.map)) { camera, meters -> renderCameraAlert(camera, meters) }
+        renderAlertsButton()
+        btnAlerts.setOnClickListener {
+            cameras.soundOn = !cameras.soundOn
+            renderAlertsButton()
+            Toast.makeText(this, if (cameras.soundOn) R.string.alerts_on else R.string.alerts_off, Toast.LENGTH_SHORT).show()
+        }
+
         navMap.onLocation = { loc ->
             renderSpeed(loc)
+            cameras.update(loc, online)
             speedLimit.update(loc, online)
             weather.update(loc, online)
             renderPlaceDistances()
@@ -194,6 +234,29 @@ class MainActivity : Activity() {
     }
 
     private fun openMaps() = Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
+
+    private fun renderAlertsButton() {
+        btnAlerts.setImageResource(if (cameras.soundOn) R.drawable.ic_bell else R.drawable.ic_bell_off)
+    }
+
+    private fun renderCameraAlert(camera: Cameras.Camera?, meters: Int) {
+        val show = camera != null && pickingIndex == null
+        if (show != alertVisible) {
+            alertVisible = show
+            cameraAlert.visibility = if (show) View.VISIBLE else View.GONE
+            renderNav()
+        }
+        if (camera == null) return
+        val distance = "${(meters / 10) * 10} m"
+        if (camera.kind == Cameras.Camera.RED_LIGHT) {
+            cameraAlertTitle.text = getString(R.string.camera_red, distance)
+            cameraAlertDetail.text = getString(R.string.camera_red_detail)
+        } else {
+            cameraAlertTitle.text = getString(R.string.camera_speed, distance)
+            cameraAlertDetail.text = camera.limit?.let { getString(R.string.camera_speed_detail_limit, it) }
+                ?: getString(R.string.camera_speed_detail)
+        }
+    }
 
     private fun renderSpeed(loc: Location?) {
         val fresh = loc != null && System.currentTimeMillis() - loc.time < 10_000 && loc.hasSpeed()
@@ -217,7 +280,7 @@ class MainActivity : Activity() {
         val picking = pickingIndex != null
         if (info == null || picking) {
             navBanner.visibility = View.GONE
-            mapSearch.visibility = if (picking) View.GONE else View.VISIBLE
+            mapSearch.visibility = if (picking || alertVisible) View.GONE else View.VISIBLE
             return
         }
         mapSearch.visibility = View.GONE
@@ -391,10 +454,15 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun askName(current: String, onName: (String) -> Unit) {
+    private fun askName(
+        current: String,
+        title: Int = R.string.place_name_title,
+        hint: Int = R.string.place_name_hint,
+        onName: (String) -> Unit
+    ) {
         val input = EditText(this)
         input.setText(current)
-        input.hint = getString(R.string.place_name_hint)
+        input.hint = getString(hint)
         input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         input.setSingleLine()
         val pad = (20 * resources.displayMetrics.density).toInt()
@@ -402,7 +470,7 @@ class MainActivity : Activity() {
         container.setPadding(pad, pad / 2, pad, 0)
         container.addView(input)
         AlertDialog.Builder(this, dialogTheme)
-            .setTitle(R.string.place_name_title)
+            .setTitle(title)
             .setView(container)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val name = input.text.toString().trim()
@@ -439,19 +507,27 @@ class MainActivity : Activity() {
 
         sourceButton.setOnClickListener { showSourceMenu() }
         findViewById<View>(R.id.track_row).setOnClickListener { openSource() }
-        // Mantener apretada la canción: muestra qué sesiones de música ve el launcher.
+        // Mantener apretada: en radio, ponerle nombre a la emisora; si no, diagnóstico de sesiones.
         findViewById<View>(R.id.track_row).setOnLongClickListener {
-            Toast.makeText(this, music.describeSessions(), Toast.LENGTH_LONG).show()
+            val freq = radioFreq
+            if (source.id == Sources.RADIO && freq != null) {
+                askName(stationName(freq) ?: "", R.string.station_name_title, R.string.station_name_hint) { name ->
+                    getSharedPreferences("stations", Context.MODE_PRIVATE).edit().putString(freq, name).apply()
+                    renderMusic()
+                }
+            } else {
+                Toast.makeText(this, music.describeSessions(), Toast.LENGTH_LONG).show()
+            }
             true
         }
 
-        findViewById<View>(R.id.btn_prev).setOnClickListener {
-            if (!music.hasAccess()) requestAccess() else if (!music.previous()) startSource()
-        }
-        findViewById<View>(R.id.btn_next).setOnClickListener {
-            if (!music.hasAccess()) requestAccess() else if (!music.next()) startSource()
-        }
+        findViewById<View>(R.id.btn_prev).setOnClickListener { skip(next = false) }
+        findViewById<View>(R.id.btn_next).setOnClickListener { skip(next = true) }
         playButton.setOnClickListener {
+            if (source.sessionPackage == null) {
+                tsPlayPause()
+                return@setOnClickListener
+            }
             if (!music.hasAccess()) {
                 requestAccess()
                 return@setOnClickListener
@@ -462,7 +538,7 @@ class MainActivity : Activity() {
                 // Si el estéreo no tenía la fuente BT activa, el celular arranca y se
                 // vuelve a pausar: en ese caso, activarla.
                 Music.PlayResult.VERIFY -> handler.postDelayed({
-                    if (!music.isPlaying && source.isBluetooth) activateBtSource()
+                    if (!music.isPlaying && source.isBluetooth) startSource()
                 }, 1500)
             }
         }
@@ -481,10 +557,90 @@ class MainActivity : Activity() {
         findViewById<View>(R.id.vol_up).setOnClickListener { stepVolume(AudioManager.ADJUST_RAISE) }
     }
 
-    /** Pone a sonar la fuente elegida: el Bluetooth se activa solo; el resto se abre. */
+    /**
+     * Pone a sonar la fuente elegida.
+     * - Bluetooth, USB y radio: se le pide al estéreo que cambie de fuente (y Play);
+     *   si a los 2 segundos no cambió, se abre su pantalla un instante y se vuelve.
+     * - Apps de música: se abren.
+     */
     private fun startSource() {
-        if (source.isBluetooth) activateBtSource() else openSource()
+        val mode = source.tsMode
+        if (mode == null) {
+            openSource()
+            return
+        }
+        if (ts.connected) {
+            ts.enterMode(mode)
+            when {
+                source.isBluetooth -> music.play()
+                source.id == Sources.USB -> ts.sendKey(TsCommon.KEY_PLAY)
+            }
+            handler.postDelayed({ if (!sourceActive()) flashOpen() }, 1800)
+        } else {
+            flashOpen()
+        }
     }
+
+    private fun sourceActive(): Boolean = when {
+        source.isBluetooth -> music.isPlaying
+        source.tsMode != null -> ts.workMode() == source.tsMode
+        else -> true
+    }
+
+    private fun skip(next: Boolean) {
+        if (source.sessionPackage == null) {
+            // USB y radio: las mismas teclas que el volante (siguiente/anterior).
+            if (tsMode == source.tsMode) ts.sendKey(if (next) TsCommon.KEY_NEXT else TsCommon.KEY_PREV)
+            else startSource()
+            return
+        }
+        if (!music.hasAccess()) {
+            requestAccess()
+            return
+        }
+        val done = if (next) music.next() else music.previous()
+        if (!done) startSource()
+    }
+
+    private fun tsPlayPause() {
+        if (tsMode != source.tsMode) {
+            startSource()
+            return
+        }
+        // La radio no tiene pausa: el botón solo indica que está al aire.
+        if (source.id == Sources.USB) ts.sendKey(if (tsPlaying) TsCommon.KEY_PAUSE else TsCommon.KEY_PLAY)
+    }
+
+    private fun pollTs() {
+        if (!ts.connected) return
+        val mode = ts.workMode()
+        val changed = mode != tsMode
+        tsMode = mode
+        when (source.id) {
+            Sources.USB -> {
+                if (mode == TsCommon.MODE_USB) {
+                    tsTitle = ts.songName()?.substringAfterLast('/')?.substringBeforeLast('.')
+                    tsPlaying = ts.playState() == 1
+                    tsCur = ts.currentTime() ?: 0
+                    tsTotal = ts.totalTime() ?: 0
+                } else {
+                    tsPlaying = false
+                }
+                renderMusic()
+            }
+            Sources.RADIO -> {
+                if (mode == TsCommon.MODE_RADIO) {
+                    radioFreq = ts.freq()
+                    radioBand = ts.band()
+                }
+                renderMusic()
+            }
+            else -> if (changed) renderMusic()
+        }
+    }
+
+    private fun stationName(freq: String): String? =
+        getSharedPreferences("stations", Context.MODE_PRIVATE).getString(freq, null)
 
     private fun openSource() {
         val intent = Sources.openIntent(this, source) ?: return
@@ -590,17 +746,14 @@ class MainActivity : Activity() {
     }
 
     /**
-     * La pantalla de música BT del estéreo, al abrirse, cambia el audio a la
-     * fuente Bluetooth y da Play (com.ts.bt.BtMusicActivity.onResume). La
-     * abrimos un instante y volvemos al launcher.
+     * Abre la pantalla de la fuente en el estéreo un instante y vuelve al launcher.
+     * Al abrirse, esa pantalla cambia el audio a su fuente y da Play
+     * (por ejemplo, com.ts.bt.BtMusicActivity.onResume).
      */
-    private fun activateBtSource() {
+    private fun flashOpen() {
+        val intent = Sources.openIntent(this, source) ?: return
         try {
-            startActivity(
-                Intent(Intent.ACTION_MAIN)
-                    .setComponent(Dock.BT_MUSIC)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            )
+            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION))
         } catch (e: Exception) {
             Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
             return
@@ -636,6 +789,11 @@ class MainActivity : Activity() {
         )
         musicSource.text = if (source.isBluetooth) "Bluetooth · celular" else source.name
 
+        if (source.sessionPackage == null) {
+            renderTsMusic()
+            return
+        }
+
         val art = music.art
         cover.visibility = if (art != null) View.VISIBLE else View.GONE
         coverPlaceholder.visibility = if (art != null) View.GONE else View.VISIBLE
@@ -665,7 +823,50 @@ class MainActivity : Activity() {
         handler.post(progressTick)
     }
 
+    private fun renderTsMusic() {
+        cover.visibility = View.GONE
+        coverPlaceholder.visibility = View.VISIBLE
+        val active = tsMode == source.tsMode
+        if (source.id == Sources.RADIO) {
+            coverPlaceholder.setImageResource(R.drawable.ic_radio)
+            val freq = radioFreq
+            if (active && freq != null) {
+                val band = radioBand ?: "FM"
+                trackTitle.text = stationName(freq) ?: "$band $freq"
+                trackArtist.text = if (stationName(freq) != null) "$band $freq" else getString(R.string.station_hint)
+            } else {
+                trackTitle.text = source.name
+                trackArtist.text = getString(if (ts.connected) R.string.source_not_active else R.string.source_open_hint)
+            }
+            playButton.setImageResource(if (active) R.drawable.ic_radio_onair else R.drawable.ic_play)
+            progressGroup.visibility = View.GONE
+        } else {
+            coverPlaceholder.setImageResource(R.drawable.ic_file)
+            if (active) {
+                trackTitle.text = tsTitle ?: source.name
+                trackArtist.text = getString(R.string.usb_label)
+            } else {
+                trackTitle.text = source.name
+                trackArtist.text = getString(if (ts.connected) R.string.source_not_active else R.string.source_open_hint)
+            }
+            playButton.setImageResource(if (active && tsPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+            if (active && tsTotal > 0) {
+                // El reproductor del estéreo puede informar segundos o milisegundos.
+                val factor = if (tsTotal > 20_000) 1L else 1000L
+                val total = tsTotal * factor
+                val cur = (tsCur * factor).coerceIn(0, total)
+                progressGroup.visibility = View.VISIBLE
+                progress.progress = (cur * 1000 / total).toInt()
+                timeNow.text = formatTime(cur)
+                timeTotal.text = formatTime(total)
+            } else {
+                progressGroup.visibility = View.GONE
+            }
+        }
+    }
+
     private fun renderProgress() {
+        if (source.sessionPackage == null) return
         val duration = music.duration
         if (!music.hasSession || duration <= 0) {
             progressGroup.visibility = View.GONE
@@ -775,6 +976,8 @@ class MainActivity : Activity() {
         source = Sources.selected(this)
         music.preferredPackage = source.sessionPackage
         music.start()
+        handler.removeCallbacks(tsTick)
+        handler.post(tsTick)
 
         watchNetwork()
         navMap.start()
@@ -786,12 +989,19 @@ class MainActivity : Activity() {
     override fun onPause() {
         handler.removeCallbacks(tick)
         handler.removeCallbacks(progressTick)
+        handler.removeCallbacks(tsTick)
         unregisterReceiver(volumeReceiver)
         music.stop()
         unwatchNetwork()
         navMap.stop()
         Nav.listener = null
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        ts.disconnect()
+        cameras.release()
+        super.onDestroy()
     }
 
     // Es la pantalla de inicio: "atrás" cancela la elección de lugar y nada más.

@@ -158,6 +158,13 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
 
     enum class PlayResult { DONE, VERIFY, NEEDS_SOURCE }
 
+    /** Play directo sobre la sesión, sin decidir nada (usado tras activar la fuente). */
+    fun play(): Boolean {
+        val c = controller ?: return false
+        c.transportControls.play()
+        return true
+    }
+
     fun next(): Boolean {
         val c = controller ?: return false
         c.transportControls.skipToNext()

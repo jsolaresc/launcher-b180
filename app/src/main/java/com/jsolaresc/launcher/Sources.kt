@@ -24,6 +24,15 @@ data class Source(
     val appPackage: String?
 ) {
     val isBluetooth get() = id == Sources.BT
+
+    /** Fuente propia del estéreo (se maneja con su servicio, no con una sesión). */
+    val tsMode: Int?
+        get() = when (id) {
+            Sources.BT -> TsCommon.MODE_BT
+            Sources.USB -> TsCommon.MODE_USB
+            Sources.RADIO -> TsCommon.MODE_RADIO
+            else -> null
+        }
 }
 
 object Sources {

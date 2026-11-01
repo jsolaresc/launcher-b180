@@ -66,4 +66,18 @@
     <string name="remove">Quitar</string>
     <string name="source_open_hint">Tocá para abrir</string>
     <string name="offline">Sin conexión</string>
+
+    <string name="alerts_sound">Sonido de alertas de fotomultas</string>
+    <string name="alerts_on">Alertas de fotomultas con sonido</string>
+    <string name="alerts_off">Alertas de fotomultas sin sonido</string>
+    <string name="camera_speed">Fotomulta · %1$s</string>
+    <string name="camera_red">Cámara de semáforo · %1$s</string>
+    <string name="camera_speed_detail">Control de velocidad</string>
+    <string name="camera_speed_detail_limit">Control de velocidad · máx. %1$d</string>
+    <string name="camera_red_detail">No pases en rojo</string>
+    <string name="station_name_title">Nombre de la emisora</string>
+    <string name="station_name_hint">Ej.: Metro, Aspen, Rock &amp; Pop</string>
+    <string name="station_hint">Mantené apretado para ponerle nombre</string>
+    <string name="usb_label">Pendrive · USB</string>
+    <string name="source_not_active">Tocá Play para escucharla</string>
 </resources>
