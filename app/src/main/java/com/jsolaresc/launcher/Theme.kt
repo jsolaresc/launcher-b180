@@ -37,6 +37,10 @@ object Prefs {
     fun offlineRadius(ctx: Context) = p(ctx).getInt("offline_radius", 20)
     fun setOfflineRadius(ctx: Context, v: Int) = p(ctx).edit().putInt("offline_radius", v).apply()
 
+    /** Guardar en el estéreo el mapa de las zonas por las que pasás (con señal). */
+    fun saveVisited(ctx: Context) = p(ctx).getBoolean("save_visited", true)
+    fun setSaveVisited(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("save_visited", v).apply()
+
     /** Volumen del aviso de radares, 0 a 100. */
     fun alertVolume(ctx: Context) = p(ctx).getInt("alert_volume", 80)
     fun setAlertVolume(ctx: Context, v: Int) = p(ctx).edit().putInt("alert_volume", v).apply()

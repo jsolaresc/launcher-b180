@@ -2,7 +2,24 @@ package com.jsolaresc.launcher
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Handler
+import android.os.Looper
+import android.os.StatFs
+import android.text.format.Formatter
+import android.widget.Switch
+import android.widget.Toast
+import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.Executors
 import android.location.LocationManager
 import android.media.AudioManager
 import android.media.SoundPool
@@ -25,6 +42,9 @@ class SettingsActivity : Activity() {
     private var alertSound = 0
     private val downloads = mutableListOf<CacheManager>()
     private var writer: SqlTileWriter? = null
+    private val store by lazy { TileCache(this) }
+    private val worker = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
 
     override fun attachBaseContext(base: Context) = super.attachBaseContext(Theme.wrap(base))
 
@@ -41,11 +61,25 @@ class SettingsActivity : Activity() {
             ""
         }
         findViewById<TextView>(R.id.settings_version).text = getString(R.string.version, version)
+        findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
 
         setupTheme()
         setupBottomCard()
         setupVolumes()
         setupOfflineMap()
+    }
+
+    /** Ajustes del fabricante (desde ahí se entra a los de fábrica con el código). */
+    private fun openStereoSettings() {
+        try {
+            startActivity(
+                Intent(Intent.ACTION_MAIN)
+                    .setComponent(ComponentName("com.ts.MainUI", "com.ts.set.SetMainActivity"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.stereo_settings_missing, Toast.LENGTH_SHORT).show()
+        }
     }
 
     // ---------- Tema ----------
@@ -170,8 +204,10 @@ class SettingsActivity : Activity() {
     private var activeButton: TextView? = null
 
     companion object {
-        private const val ZOOM_MIN = 10
-        private const val ZOOM_MAX = 16
+        private const val ZOOM_MIN = OfflineAreas.ZOOM_MIN
+        private const val ZOOM_MAX = OfflineAreas.ZOOM_MAX
+        private const val AMBA_ID = "amba"
+        private const val AROUND_ID = "around"
 
         /** CABA, Zona Sur hasta La Plata y Zona Oeste hasta Moreno (rectángulos que se pisan poco). */
         private val AMBA = listOf(
@@ -200,12 +236,24 @@ class SettingsActivity : Activity() {
         showSaved()
 
         offlineButton.setOnClickListener {
-            if (activeButton != null) cancelDownload() else aroundBoxes()?.let { startDownload(it, offlineButton) }
+            if (activeButton != null) cancelDownload() else aroundBoxes()?.let { startDownload(it, offlineButton, aroundArea(it)) }
         }
         ambaButton.setOnClickListener {
-            if (activeButton != null) cancelDownload() else startDownload(AMBA, ambaButton)
+            if (activeButton != null) cancelDownload() else startDownload(AMBA, ambaButton, ambaArea())
         }
+
+        val saveVisited = findViewById<Switch>(R.id.save_visited)
+        saveVisited.isChecked = Prefs.saveVisited(this)
+        saveVisited.setOnCheckedChangeListener { _, on -> Prefs.setSaveVisited(this, on) }
+        findViewById<View>(R.id.save_visited_row).setOnClickListener { saveVisited.toggle() }
+
+        findViewById<View>(R.id.offline_manage).setOnClickListener { showManage() }
     }
+
+    private fun ambaArea() = OfflineAreas.Area(AMBA_ID, getString(R.string.area_amba), AMBA, 0)
+
+    private fun aroundArea(boxes: List<BoundingBox>) =
+        OfflineAreas.Area(AROUND_ID, getString(R.string.area_around, Prefs.offlineRadius(this)), boxes, 0)
 
     private fun changeRadius(delta: Int) {
         Prefs.setOfflineRadius(this, (Prefs.offlineRadius(this) + delta).coerceIn(5, 50))
@@ -234,13 +282,8 @@ class SettingsActivity : Activity() {
     private fun tileCount(box: BoundingBox): Int {
         var total = 0
         for (z in ZOOM_MIN..ZOOM_MAX) {
-            val n = 1 shl z
-            fun x(lon: Double) = ((lon + 180) / 360 * n).toInt()
-            fun y(lat: Double): Int {
-                val r = Math.toRadians(lat)
-                return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n).toInt()
-            }
-            total += (x(box.lonEast) - x(box.lonWest) + 1) * (y(box.latSouth) - y(box.latNorth) + 1)
+            total += (OfflineAreas.tileX(box.lonEast, z) - OfflineAreas.tileX(box.lonWest, z) + 1) *
+                (OfflineAreas.tileY(box.latSouth, z) - OfflineAreas.tileY(box.latNorth, z) + 1)
         }
         return total
     }
@@ -271,10 +314,15 @@ class SettingsActivity : Activity() {
     }
 
     private fun showSaved() {
-        offlineStatus.text = getString(R.string.offline_saved, cacheSizeMb())
+        val fs = StatFs(filesDir.path)
+        offlineStatus.text = getString(
+            R.string.offline_saved, cacheSizeMb(),
+            Formatter.formatShortFileSize(this, fs.availableBytes),
+            Formatter.formatShortFileSize(this, fs.totalBytes)
+        )
     }
 
-    private fun startDownload(boxes: List<BoundingBox>, button: TextView) {
+    private fun startDownload(boxes: List<BoundingBox>, button: TextView, area: OfflineAreas.Area) {
         val w = writer ?: SqlTileWriter().also { writer = it }
         val jobs = sources().flatMap { source -> boxes.map { source to it } }
         var total = 0
@@ -315,6 +363,10 @@ class SettingsActivity : Activity() {
                     finished++
                     if (finished < jobs.size) return
                     endDownload()
+                    OfflineAreas.save(
+                        this@SettingsActivity,
+                        OfflineAreas.Area(area.id, area.name, area.boxes, System.currentTimeMillis())
+                    )
                     offlineStatus.text = if (errors > 0) getString(R.string.offline_failed, errors)
                     else getString(R.string.offline_done)
                 }
@@ -336,10 +388,176 @@ class SettingsActivity : Activity() {
         showSaved()
     }
 
+    // ---------- Administrar mapas guardados ----------
+
+    private var manageDialog: AlertDialog? = null
+
+    private fun showManage() {
+        val d = resources.displayMetrics.density
+        val list = LinearLayout(this)
+        list.orientation = LinearLayout.VERTICAL
+        list.setPadding((18 * d).toInt(), (6 * d).toInt(), (18 * d).toInt(), 0)
+        val loading = TextView(this)
+        loading.setText(R.string.manage_loading)
+        loading.setTextColor(getColor(R.color.muted))
+        list.addView(loading)
+
+        manageDialog = AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(R.string.manage_title)
+            .setView(android.widget.ScrollView(this).apply { addView(list) })
+            .setPositiveButton(R.string.manage_close, null)
+            .show()
+
+        val areas = OfflineAreas.list(this)
+        worker.execute {
+            val usage = try {
+                store.usage(areas)
+            } catch (e: Exception) {
+                emptyMap()
+            }
+            main.post { fillManage(list, areas, usage) }
+        }
+    }
+
+    private fun mb(bytes: Long?) = ((bytes ?: 0L) / (1024 * 1024)).toInt()
+
+    private fun date(ms: Long) = SimpleDateFormat("d/M", Locale.getDefault()).format(Date(ms))
+
+    private fun fillManage(list: LinearLayout, areas: List<OfflineAreas.Area>, usage: Map<String, Long>) {
+        list.removeAllViews()
+        for (area in areas) {
+            val others = areas.filter { it.id != area.id }
+            manageRow(
+                list, area.name, getString(R.string.manage_area_detail, date(area.date), mb(usage[area.id])),
+                onUpdate = { updateArea(area, others) },
+                onDelete = {
+                    confirmDelete(area.name) {
+                        OfflineAreas.remove(this, area.id)
+                        deleteTiles(mb(usage[area.id])) { key -> area.contains(key) && others.none { it.contains(key) } }
+                    }
+                }
+            )
+        }
+        val visited = usage[""] ?: 0L
+        if (visited > 0) {
+            val name = getString(R.string.manage_visited)
+            manageRow(list, name, getString(R.string.manage_visited_detail, mb(visited)), onUpdate = null, onDelete = {
+                confirmDelete(name) { deleteTiles(mb(visited)) { key -> areas.none { it.contains(key) } } }
+            })
+        }
+        val camerasAt = try {
+            JSONObject(File(filesDir, "cameras.json").readText()).getLong("at")
+        } catch (e: Exception) {
+            0L
+        }
+        manageRow(
+            list, getString(R.string.manage_radars),
+            if (camerasAt > 0) getString(R.string.manage_radars_detail, date(camerasAt)) else getString(R.string.manage_radars_never),
+            onUpdate = { updateRoadData() }, onDelete = null
+        )
+    }
+
+    private fun manageRow(list: LinearLayout, title: String, detail: String, onUpdate: (() -> Unit)?, onDelete: (() -> Unit)?) {
+        val d = resources.displayMetrics.density
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(0, (6 * d).toInt(), 0, (6 * d).toInt())
+
+        val texts = LinearLayout(this)
+        texts.orientation = LinearLayout.VERTICAL
+        val name = TextView(this)
+        name.text = title
+        name.setTextColor(getColor(R.color.text))
+        name.textSize = 11f
+        val sub = TextView(this)
+        sub.text = detail
+        sub.setTextColor(getColor(R.color.muted))
+        sub.textSize = 9f
+        texts.addView(name)
+        texts.addView(sub)
+        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        fun button(label: Int, action: () -> Unit) {
+            val b = TextView(this)
+            b.setText(label)
+            b.setTextColor(getColor(R.color.text))
+            b.textSize = 10f
+            b.gravity = Gravity.CENTER
+            b.setBackgroundResource(R.drawable.bg_option)
+            b.setPadding((12 * d).toInt(), 0, (12 * d).toInt(), 0)
+            b.setOnClickListener { action() }
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, (32 * d).toInt())
+            lp.marginStart = (6 * d).toInt()
+            row.addView(b, lp)
+        }
+        onUpdate?.let { button(R.string.manage_update, it) }
+        onDelete?.let { button(R.string.manage_delete, it) }
+        list.addView(row)
+    }
+
+    private fun onWifi(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        return cm.getNetworkCapabilities(cm.activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+    }
+
+    private fun confirmDelete(name: String, action: () -> Unit) {
+        AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setMessage(getString(R.string.manage_confirm_delete, name))
+            .setPositiveButton(R.string.manage_delete) { _, _ -> action() }
+            .setNegativeButton(R.string.offline_cancel, null)
+            .show()
+    }
+
+    private fun deleteTiles(freedMb: Int, match: (Long) -> Boolean) {
+        manageDialog?.dismiss()
+        offlineStatus.setText(R.string.manage_deleting)
+        worker.execute {
+            try {
+                store.deleteWhere(match)
+            } catch (e: Exception) {
+            }
+            main.post {
+                showSaved()
+                Toast.makeText(this, getString(R.string.manage_deleted, freedMb), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /** Vuelve a bajar la zona: borra lo viejo (sin tocar lo que comparte con otra zona) y descarga. */
+    private fun updateArea(area: OfflineAreas.Area, others: List<OfflineAreas.Area>) {
+        if (!onWifi()) {
+            Toast.makeText(this, R.string.manage_need_wifi, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (activeButton != null) return
+        manageDialog?.dismiss()
+        offlineStatus.setText(R.string.manage_deleting)
+        worker.execute {
+            try {
+                store.deleteWhere { key -> area.contains(key) && others.none { it.contains(key) } }
+            } catch (e: Exception) {
+            }
+            main.post {
+                startDownload(area.boxes, if (area.id == AMBA_ID) ambaButton else offlineButton, area)
+            }
+        }
+    }
+
+    /** Radares y máximas/nombres de calles: se descartan y el mapa los vuelve a pedir con señal. */
+    private fun updateRoadData() {
+        File(filesDir, "cameras.json").delete()
+        getSharedPreferences("maxspeed", Context.MODE_PRIVATE).edit().clear().apply()
+        manageDialog?.dismiss()
+        Toast.makeText(this, R.string.manage_radars_updated, Toast.LENGTH_LONG).show()
+    }
+
     override fun onDestroy() {
         downloads.forEach { it.cancelAllJobs() }
         writer?.onDetach()
         soundPool?.release()
+        manageDialog?.dismiss()
+        worker.shutdown()
         super.onDestroy()
     }
 }

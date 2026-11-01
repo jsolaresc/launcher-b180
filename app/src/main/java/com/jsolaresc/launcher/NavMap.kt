@@ -18,6 +18,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
@@ -123,7 +124,10 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     }
 
     init {
-        map.setTileSource(if (Theme.isNight(activity)) DARK_TILES else LIGHT_TILES)
+        val tiles = if (Theme.isNight(activity)) DARK_TILES else LIGHT_TILES
+        // Proveedor propio para poder no guardar lo recorrido (opción en Ajustes).
+        map.tileProvider = MapTileProviderBasic(activity.applicationContext, tiles, TileCache(activity.applicationContext))
+        map.setTileSource(tiles)
         map.setMultiTouchControls(true)
         map.zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         map.isTilesScaledToDpi = true

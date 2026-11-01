@@ -1099,6 +1099,7 @@ class MainActivity : Activity() {
         handler.post(tsTick)
 
         watchNetwork()
+        cameras.reloadIfCleared()
         navMap.start()
         Nav.listener = { runOnUiThread { renderNav() } }
         renderNav()

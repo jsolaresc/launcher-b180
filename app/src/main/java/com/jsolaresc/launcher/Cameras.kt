@@ -91,6 +91,16 @@ class Cameras(
         }
     }
 
+    /** Si en Ajustes se pidió actualizar los radares, se descarta lo cargado y se baja de nuevo con señal. */
+    fun reloadIfCleared() {
+        if (!file.exists() && fetchedAt != 0L) {
+            cameras = emptyList()
+            fetchedAt = 0L
+            sounded.clear()
+            map.invalidate()
+        }
+    }
+
     fun update(loc: Location, online: Boolean) {
         if (online) maybeFetch(loc)
         checkAlert(loc)
