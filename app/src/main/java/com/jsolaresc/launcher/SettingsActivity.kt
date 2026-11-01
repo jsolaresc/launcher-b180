@@ -248,6 +248,7 @@ class SettingsActivity : Activity() {
         findViewById<View>(R.id.save_visited_row).setOnClickListener { saveVisited.toggle() }
 
         findViewById<View>(R.id.offline_manage).setOnClickListener { showManage() }
+        findViewById<View>(R.id.offline_import).setOnClickListener { importFromUsb() }
     }
 
     private fun ambaArea() = OfflineAreas.Area(AMBA_ID, getString(R.string.area_amba), AMBA, 0)
@@ -386,6 +387,138 @@ class SettingsActivity : Activity() {
         downloads.forEach { it.cancelAllJobs() }
         endDownload()
         showSaved()
+    }
+
+    // ---------- Importar desde USB ----------
+
+    private val importName = "mapa-amba.sqlite"
+    private val reqStorage = 41
+    private val reqPick = 42
+    private var importing = false
+
+    private fun importFromUsb() {
+        if (importing || activeButton != null) return
+        findOnUsb()?.let { importFile(it, temporary = false); return }
+        if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), reqStorage)
+            return
+        }
+        pickFile()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != reqStorage) return
+        val found = findOnUsb()
+        if (found != null) importFile(found, temporary = false) else pickFile()
+    }
+
+    /** Busca el archivo en la raíz (o una carpeta adentro) de cada memoria conectada. */
+    private fun findOnUsb(): File? {
+        val roots = LinkedHashSet<File>()
+        try {
+            val sm = getSystemService(Context.STORAGE_SERVICE) as android.os.storage.StorageManager
+            for (v in sm.storageVolumes) {
+                try {
+                    (v.javaClass.getMethod("getPath").invoke(v) as? String)?.let { roots.add(File(it)) }
+                } catch (e: Exception) {
+                }
+            }
+        } catch (e: Exception) {
+        }
+        for (base in listOf("/storage", "/mnt", "/mnt/media_rw")) {
+            File(base).listFiles()?.forEach { roots.add(it) }
+        }
+        for (root in roots) {
+            val direct = File(root, importName)
+            if (direct.canRead()) return direct
+            root.listFiles()?.forEach { sub ->
+                val f = File(sub, importName)
+                if (f.canRead()) return f
+            }
+        }
+        return null
+    }
+
+    private fun pickFile() {
+        try {
+            @Suppress("DEPRECATION")
+            startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),
+                reqPick
+            )
+        } catch (e: Exception) {
+            offlineStatus.setText(R.string.import_not_found)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != reqPick) return
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            offlineStatus.setText(R.string.import_not_found)
+            return
+        }
+        // Elegido con el selector: hay que copiarlo primero (no hay ruta directa).
+        importing = true
+        val temp = File(filesDir, "import.sqlite")
+        worker.execute {
+            val ok = try {
+                contentResolver.openInputStream(uri)!!.use { input ->
+                    temp.outputStream().use { out ->
+                        val buf = ByteArray(1 shl 16)
+                        var total = 0L
+                        var shown = -1
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            total += n
+                            val mb = (total / (1024 * 1024)).toInt()
+                            if (mb / 10 != shown) {
+                                shown = mb / 10
+                                main.post { offlineStatus.text = getString(R.string.import_copying, mb) }
+                            }
+                        }
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                false
+            }
+            main.post {
+                importing = false
+                if (ok) importFile(temp, temporary = true) else {
+                    temp.delete()
+                    offlineStatus.setText(R.string.import_failed)
+                }
+            }
+        }
+    }
+
+    private fun importFile(file: File, temporary: Boolean) {
+        importing = true
+        offlineStatus.setText(R.string.import_merging)
+        worker.execute {
+            val count = try {
+                store.importArchive(file.path)
+            } catch (e: Exception) {
+                -1
+            }
+            if (temporary) file.delete()
+            main.post {
+                importing = false
+                if (count > 0) {
+                    OfflineAreas.save(this, OfflineAreas.Area(AMBA_ID, getString(R.string.area_amba), AMBA, System.currentTimeMillis()))
+                    showSaved()
+                    Toast.makeText(this, getString(R.string.import_done, count), Toast.LENGTH_LONG).show()
+                } else {
+                    offlineStatus.setText(R.string.import_failed)
+                }
+            }
+        }
     }
 
     // ---------- Administrar mapas guardados ----------

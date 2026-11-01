@@ -113,6 +113,12 @@
     <string name="save_visited">Guardar las zonas que recorro</string>
     <string name="save_visited_hint">Con señal, lo que muestra el mapa queda guardado para verlo sin señal</string>
     <string name="offline_manage">Administrar</string>
+    <string name="offline_import">Desde USB</string>
+    <string name="import_not_found">Copiá mapa-amba.sqlite a la raíz del pendrive y volvé a tocar "Desde USB"</string>
+    <string name="import_copying">Copiando del pendrive… %1$d MB</string>
+    <string name="import_merging">Guardando el mapa en el estéreo…</string>
+    <string name="import_done">Listo: el mapa del AMBA quedó guardado (%1$d partes)</string>
+    <string name="import_failed">No se pudo importar el archivo</string>
     <string name="manage_title">Mapas guardados</string>
     <string name="manage_loading">Calculando…</string>
     <string name="manage_area_detail">Bajado el %1$s · %2$d MB</string>

@@ -63,6 +63,26 @@ class TileCache(private val ctx: Context) : SqlTileWriter() {
         }
     }
 
+    /** Suma las teselas de un archivo con el mismo formato (mapa-amba.sqlite) a lo guardado. */
+    fun importArchive(path: String): Int {
+        val db = getDb() ?: return 0
+        db.execSQL("ATTACH DATABASE ? AS imp", arrayOf(path))
+        try {
+            // Vencen en un año: hasta entonces, con señal no se vuelven a bajar.
+            val expires = System.currentTimeMillis() + 365L * 24 * 3600 * 1000
+            db.execSQL(
+                "INSERT OR REPLACE INTO ${DatabaseFileArchive.TABLE} " +
+                    "(${DatabaseFileArchive.COLUMN_KEY}, ${DatabaseFileArchive.COLUMN_PROVIDER}, ${DatabaseFileArchive.COLUMN_TILE}, $COLUMN_EXPIRES) " +
+                    "SELECT key, provider, tile, $expires FROM imp.tiles"
+            )
+            db.rawQuery("SELECT count(*) FROM imp.tiles", null).use { c ->
+                return if (c.moveToFirst()) c.getInt(0) else 0
+            }
+        } finally {
+            db.execSQL("DETACH DATABASE imp")
+        }
+    }
+
     companion object {
         /** La clave de osmdroid es ((z << z) + x << z) + y: devuelve (z, x, y). */
         fun decode(key: Long): Triple<Int, Int, Int>? {

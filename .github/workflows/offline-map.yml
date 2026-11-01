@@ -1,0 +1,34 @@
+name: Mapa sin conexión
+
+# Se corre a mano (Actions → Mapa sin conexión → Run workflow) o el día 1 de cada mes.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "17 6 1 * *"
+
+permissions:
+  contents: write
+
+jobs:
+  mapa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descargar el AMBA
+        run: python3 tools/offline_map.py mapa-amba.sqlite
+
+      - name: Tamaño
+        run: ls -lh mapa-amba.sqlite
+
+      - name: Publicar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mapa-amba
+          name: Mapa del AMBA para cargar por USB
+          body: |
+            Copiá mapa-amba.sqlite a la raíz del pendrive, conectalo al estéreo y en el launcher andá a Ajustes → Mapa sin conexión → Importar desde USB.
+            Trae CABA, Zona Sur hasta La Plata y Zona Oeste hasta Moreno, en tema claro y oscuro.
+          files: mapa-amba.sqlite
+          make_latest: "false"
