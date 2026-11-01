@@ -33,7 +33,11 @@ object Prefs {
     fun bottomCard(ctx: Context) = p(ctx).getString("bottom_card", CARD_PLACES) ?: CARD_PLACES
     fun setBottomCard(ctx: Context, v: String) = p(ctx).edit().putString("bottom_card", v).apply()
 
-    /** Volumen del aviso de fotomultas, 0 a 100. */
+    /** Radio de "Descargar alrededor tuyo", en km. */
+    fun offlineRadius(ctx: Context) = p(ctx).getInt("offline_radius", 20)
+    fun setOfflineRadius(ctx: Context, v: Int) = p(ctx).edit().putInt("offline_radius", v).apply()
+
+    /** Volumen del aviso de radares, 0 a 100. */
     fun alertVolume(ctx: Context) = p(ctx).getInt("alert_volume", 80)
     fun setAlertVolume(ctx: Context, v: Int) = p(ctx).edit().putInt("alert_volume", v).apply()
 }

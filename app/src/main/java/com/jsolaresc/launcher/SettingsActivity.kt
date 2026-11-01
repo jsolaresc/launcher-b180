@@ -17,7 +17,6 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.cachemanager.CacheManager
 import org.osmdroid.tileprovider.modules.SqlTileWriter
 import org.osmdroid.util.BoundingBox
-import java.io.File
 
 class SettingsActivity : Activity() {
 
@@ -162,17 +161,107 @@ class SettingsActivity : Activity() {
     // ---------- Mapa sin conexión ----------
 
     private lateinit var offlineButton: TextView
+    private lateinit var ambaButton: TextView
     private lateinit var offlineStatus: TextView
     private lateinit var offlineProgress: ProgressBar
+    private lateinit var radiusValue: TextView
+    private lateinit var radiusEstimate: TextView
+    /** Qué botón inició la descarga en curso (para mostrar "Cancelar" en ese). */
+    private var activeButton: TextView? = null
+
+    companion object {
+        private const val ZOOM_MIN = 10
+        private const val ZOOM_MAX = 16
+
+        /** CABA, Zona Sur hasta La Plata y Zona Oeste hasta Moreno (rectángulos que se pisan poco). */
+        private val AMBA = listOf(
+            BoundingBox(-34.52, -58.33, -34.71, -58.54),
+            BoundingBox(-34.64, -57.90, -34.96, -58.42),
+            BoundingBox(-34.56, -58.50, -34.72, -58.82)
+        )
+
+        // Peso promedio de una tesela urbana, medido a ojo sobre CARTO: la oscura pesa menos.
+        private const val KB_DARK = 9
+        private const val KB_LIGHT = 20
+    }
 
     private fun setupOfflineMap() {
         offlineButton = findViewById(R.id.offline_button)
+        ambaButton = findViewById(R.id.amba_button)
         offlineStatus = findViewById(R.id.offline_status)
         offlineProgress = findViewById(R.id.offline_progress)
+        radiusValue = findViewById(R.id.radius_value)
+        radiusEstimate = findViewById(R.id.radius_estimate)
+
+        findViewById<View>(R.id.radius_less).setOnClickListener { changeRadius(-5) }
+        findViewById<View>(R.id.radius_more).setOnClickListener { changeRadius(5) }
+        renderRadius()
+        findViewById<TextView>(R.id.amba_estimate).text = getString(R.string.offline_estimate, estimateMb(AMBA))
         showSaved()
+
         offlineButton.setOnClickListener {
-            if (downloads.isNotEmpty()) cancelDownload() else startDownload()
+            if (activeButton != null) cancelDownload() else aroundBoxes()?.let { startDownload(it, offlineButton) }
         }
+        ambaButton.setOnClickListener {
+            if (activeButton != null) cancelDownload() else startDownload(AMBA, ambaButton)
+        }
+    }
+
+    private fun changeRadius(delta: Int) {
+        Prefs.setOfflineRadius(this, (Prefs.offlineRadius(this) + delta).coerceIn(5, 50))
+        renderRadius()
+    }
+
+    private fun renderRadius() {
+        radiusValue.text = getString(R.string.offline_radius, Prefs.offlineRadius(this))
+        val boxes = aroundBoxes(quiet = true)
+        radiusEstimate.text = if (boxes != null) getString(R.string.offline_estimate, estimateMb(boxes)) else ""
+    }
+
+    private fun sources() = when (Prefs.theme(this)) {
+        Prefs.THEME_LIGHT -> listOf(NavMap.LIGHT_TILES)
+        Prefs.THEME_DARK -> listOf(NavMap.DARK_TILES)
+        else -> listOf(NavMap.DARK_TILES, NavMap.LIGHT_TILES)
+    }
+
+    /** Teselas de las zonas, sumando los temas que se van a bajar. */
+    private fun estimateMb(boxes: List<BoundingBox>): Int {
+        val tiles = boxes.sumOf { tileCount(it) }
+        val kb = sources().sumOf { if (it === NavMap.DARK_TILES) KB_DARK else KB_LIGHT }
+        return (tiles.toLong() * kb / 1024).toInt()
+    }
+
+    private fun tileCount(box: BoundingBox): Int {
+        var total = 0
+        for (z in ZOOM_MIN..ZOOM_MAX) {
+            val n = 1 shl z
+            fun x(lon: Double) = ((lon + 180) / 360 * n).toInt()
+            fun y(lat: Double): Int {
+                val r = Math.toRadians(lat)
+                return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n).toInt()
+            }
+            total += (x(box.lonEast) - x(box.lonWest) + 1) * (y(box.latSouth) - y(box.latNorth) + 1)
+        }
+        return total
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun aroundBoxes(quiet: Boolean = false): List<BoundingBox>? {
+        val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val loc = try {
+            lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        } catch (e: Exception) {
+            null
+        }
+        if (loc == null) {
+            if (!quiet) offlineStatus.text = getString(R.string.offline_no_location)
+            return null
+        }
+        val km = Prefs.offlineRadius(this)
+        val dLat = km / 111.0
+        val dLon = km / (111.0 * Math.cos(Math.toRadians(loc.latitude)))
+        return listOf(BoundingBox(loc.latitude + dLat, loc.longitude + dLon, loc.latitude - dLat, loc.longitude - dLon))
     }
 
     private fun cacheSizeMb(): Int {
@@ -185,49 +274,30 @@ class SettingsActivity : Activity() {
         offlineStatus.text = getString(R.string.offline_saved, cacheSizeMb())
     }
 
-    @SuppressLint("MissingPermission")
-    private fun startDownload() {
-        val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val loc = try {
-            lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        } catch (e: Exception) {
-            null
-        }
-        if (loc == null) {
-            offlineStatus.text = getString(R.string.offline_no_location)
-            return
-        }
-        // ~20 km alrededor; zoom 10 a 16 (de ciudad a calle).
-        val d = 0.18
-        val box = BoundingBox(loc.latitude + d, loc.longitude + d, loc.latitude - d, loc.longitude - d)
-        val sources = when (Prefs.theme(this)) {
-            Prefs.THEME_LIGHT -> listOf(NavMap.LIGHT_TILES)
-            Prefs.THEME_DARK -> listOf(NavMap.DARK_TILES)
-            else -> listOf(NavMap.DARK_TILES, NavMap.LIGHT_TILES)
-        }
-        val w = SqlTileWriter().also { writer = it }
+    private fun startDownload(boxes: List<BoundingBox>, button: TextView) {
+        val w = writer ?: SqlTileWriter().also { writer = it }
+        val jobs = sources().flatMap { source -> boxes.map { source to it } }
         var total = 0
         var done = 0
         var finished = 0
         var errors = 0
+        activeButton = button
+        button.setText(R.string.offline_cancel)
         offlineProgress.visibility = View.VISIBLE
         offlineProgress.progress = 0
-        offlineButton.setText(R.string.offline_cancel)
 
-        for (source in sources) {
-            val manager = CacheManager(source, w, 10, 16)
+        for ((source, box) in jobs) {
+            val manager = CacheManager(source, w, ZOOM_MIN, ZOOM_MAX)
             downloads.add(manager)
-            val count = manager.possibleTilesInArea(box, 10, 16)
-            total += count
-            manager.downloadAreaAsyncNoUI(this, box, 10, 16, object : CacheManager.CacheManagerCallback {
+            total += manager.possibleTilesInArea(box, ZOOM_MIN, ZOOM_MAX)
+            manager.downloadAreaAsyncNoUI(this, box, ZOOM_MIN, ZOOM_MAX, object : CacheManager.CacheManagerCallback {
                 private var mine = 0
 
-                override fun onTaskComplete() = finishOne(false)
+                override fun onTaskComplete() = finishOne()
 
                 override fun onTaskFailed(errors1: Int) {
                     errors += errors1
-                    finishOne(true)
+                    finishOne()
                 }
 
                 override fun updateProgress(progress: Int, currentZoomLevel: Int, zoomMin: Int, zoomMax: Int) {
@@ -241,24 +311,28 @@ class SettingsActivity : Activity() {
                 override fun downloadStarted() {}
                 override fun setPossibleTilesInArea(total1: Int) {}
 
-                private fun finishOne(failed: Boolean) {
+                private fun finishOne() {
                     finished++
-                    if (finished < sources.size) return
-                    downloads.clear()
-                    offlineProgress.visibility = View.GONE
-                    offlineButton.setText(R.string.offline_download)
-                    offlineStatus.text = if (errors > 0 || failed) getString(R.string.offline_failed, errors)
+                    if (finished < jobs.size) return
+                    endDownload()
+                    offlineStatus.text = if (errors > 0) getString(R.string.offline_failed, errors)
                     else getString(R.string.offline_done)
                 }
             })
         }
     }
 
-    private fun cancelDownload() {
-        downloads.forEach { it.cancelAllJobs() }
+    private fun endDownload() {
         downloads.clear()
         offlineProgress.visibility = View.GONE
         offlineButton.setText(R.string.offline_download)
+        ambaButton.setText(R.string.offline_download_amba)
+        activeButton = null
+    }
+
+    private fun cancelDownload() {
+        downloads.forEach { it.cancelAllJobs() }
+        endDownload()
         showSaved()
     }
 

@@ -66,9 +66,10 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
                 userAgentValue = ctx.packageName
                 osmdroidBasePath = base
                 osmdroidTileCache = File(base, "tiles")
-                // Hasta ~600 MB de mapa guardado; al pasarse, borra lo más viejo.
-                tileFileSystemCacheMaxBytes = 600L * 1024 * 1024
-                tileFileSystemCacheTrimBytes = 500L * 1024 * 1024
+                // Hasta ~1,5 GB de mapa guardado (AMBA en los dos temas entra);
+                // al pasarse, borra lo más viejo. El estéreo tiene ~8 GB libres.
+                tileFileSystemCacheMaxBytes = 1536L * 1024 * 1024
+                tileFileSystemCacheTrimBytes = 1300L * 1024 * 1024
                 cacheMapTileCount = 12
                 tileDownloadThreads = 2
             }

@@ -16,21 +16,22 @@ Cada versión nueva se instala encima de la anterior: no hace falta desinstalar.
   **Mantené apretado** un botón para cambiar su app.
 - **Música:** el desplegable de la tarjeta elige la fuente (Bluetooth, YouTube Music, USB, Radio u otra app).
 - **Destinos rápidos:** "Agregar", mover el mapa hasta el lugar y "Guardar acá". Mantener apretado para editar.
-- **Fotomultas:** la campana sobre el mapa activa o silencia el aviso sonoro.
+- **Radares:** la campana sobre el mapa activa o silencia el aviso sonoro (suena solo si te pasás de la máxima o si no se conoce).
 
 ## Etapas
 
 - [x] 1. Base: estructura, dock con etiquetas, reloj, lista de apps.
 - [x] 2. Música: título, artista, portada, progreso, volumen y arreglo del Play por Bluetooth; fuentes Bluetooth, YouTube Music, USB y Radio.
-- [x] 3. Mapa propio con posición, velocidad, velocidad máxima, indicaciones de Google Maps, destinos rápidos y fotomultas.
+- [x] 3. Mapa propio con posición, velocidad, velocidad máxima, indicaciones de Google Maps, destinos rápidos y radares.
 - [x] 4. Extras con señal: clima.
-- [ ] Descargar el mapa de una zona entera para usarlo sin señal (hoy se guarda lo que ya se vio).
+- [x] Descargar el mapa (alrededor tuyo o AMBA) para usarlo sin señal.
+- [ ] Editar widgets: agrandar, achicar y sumar widgets de Android.
 - [ ] Pruebas en el estéreo.
 
 ## Notas técnicas
 
 - Única dependencia: osmdroid (mapa). Compila para Android 5+ (`targetSdk` 29).
-- Mapa, velocidad máxima y fotomultas: datos de OpenStreetMap; clima: Open-Meteo.
+- Mapa, velocidad máxima y radares: datos de OpenStreetMap; clima: Open-Meteo.
 - USB, radio y cambio de fuente: servicio `ITsCommon` de `com.ts.MainUI` (la app del estéreo).
 - La firma usa la clave fija de `keystore/` para que las actualizaciones se instalen encima.
 - GitHub Actions compila cada push a `main` y publica el APK en Releases.
