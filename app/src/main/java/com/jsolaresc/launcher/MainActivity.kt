@@ -1147,6 +1147,7 @@ class MainActivity : Activity() {
         handler.post(tsTick)
 
         watchNetwork()
+        findViewById<TextView>(R.id.where_to_hint).text = getString(R.string.where_to_hint_app, Dock.navigatorName(this))
         cameras.reloadIfCleared()
         navMap.start()
         Nav.listener = { runOnUiThread { renderNav() } }

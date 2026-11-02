@@ -22,6 +22,28 @@ object Dock {
 
     private const val PREFS = "dock"
     private const val MAPS_PACKAGE = "com.google.android.apps.maps"
+    /** Navegador sin conexión: si está instalado, es el que abre "Maps" en el dock. */
+    const val ORGANIC_PACKAGE = "app.organicmaps"
+
+    /** Nombre del navegador que abre el dock (para los textos). */
+    fun navigatorName(ctx: Context): String = when {
+        saved(ctx, MAPS) != null -> saved(ctx, MAPS)!!.let { c ->
+            try {
+                ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(c.packageName, 0)).toString()
+            } catch (e: Exception) {
+                "Maps"
+            }
+        }
+        installed(ctx, ORGANIC_PACKAGE) -> "Organic Maps"
+        else -> "Google Maps"
+    }
+
+    private fun installed(ctx: Context, pkg: String) = try {
+        ctx.packageManager.getPackageInfo(pkg, 0)
+        true
+    } catch (e: Exception) {
+        false
+    }
 
     // Pantallas del fabricante (com.ts.MainUI), confirmadas en su APK.
     private const val TS_PACKAGE = "com.ts.MainUI"
@@ -41,7 +63,8 @@ object Dock {
     }
 
     private fun defaultIntent(ctx: Context, key: String): Intent? = when (key) {
-        MAPS -> ctx.packageManager.getLaunchIntentForPackage(MAPS_PACKAGE)
+        MAPS -> ctx.packageManager.getLaunchIntentForPackage(ORGANIC_PACKAGE)
+            ?: ctx.packageManager.getLaunchIntentForPackage(MAPS_PACKAGE)
         SETTINGS -> Intent(Settings.ACTION_SETTINGS)
         MUSIC -> Intent(Intent.ACTION_MAIN).setComponent(BT_MUSIC)
         RADIO -> Intent(Intent.ACTION_MAIN).setComponent(RADIO_SCREEN)
