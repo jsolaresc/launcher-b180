@@ -251,12 +251,39 @@ class MainActivity : Activity() {
             weather.update(loc, online)
             renderPlaceDistances()
             renderCardLive(loc)
+            checkClock(loc)
         }
 
         if (!navMap.hasPermission()) requestLocation()
     }
 
     private fun openMaps() = Dock.open(this, Dock.MAPS, getString(R.string.label_maps))
+
+    /**
+     * Si la fecha del estéreo está muy corrida (por ejemplo, 2018), las conexiones seguras
+     * fallan y no anda nada online. El GPS trae la hora real: se avisa una vez por sesión.
+     */
+    private var clockWarned = false
+
+    private fun checkClock(loc: android.location.Location) {
+        if (clockWarned || loc.provider != android.location.LocationManager.GPS_PROVIDER) return
+        val diff = kotlin.math.abs(loc.time - System.currentTimeMillis())
+        if (diff < 24L * 3600 * 1000) return
+        clockWarned = true
+        val fmt = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
+        android.app.AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(R.string.clock_wrong_title)
+            .setMessage(getString(R.string.clock_wrong, fmt.format(java.util.Date()), fmt.format(java.util.Date(loc.time))))
+            .setPositiveButton(R.string.clock_fix) { _, _ ->
+                try {
+                    startActivity(Intent(Settings.ACTION_DATE_SETTINGS))
+                } catch (e: Exception) {
+                    startActivity(Intent(Settings.ACTION_SETTINGS))
+                }
+            }
+            .setNegativeButton(R.string.clock_later, null)
+            .show()
+    }
 
     /** Mapa propio en pantalla completa (sin columna ni dock). Google Maps se abre desde el dock. */
     private var fullMap = false

@@ -23,9 +23,10 @@ AMBA = [
     (-34.64, -57.88, -35.00, -58.50),  # Zona Sur: Avellaneda, Quilmes, Ezeiza, La Plata
 ]
 
-# Nombres iguales a NavMap.DARK_TILES / LIGHT_TILES.
+# Nombres iguales a NavMap.DARK_TILES / DARK_LABELS / LIGHT_TILES.
 SOURCES = {
-    "CartoDark2": "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    "CartoDarkBase": "https://basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png",
+    "CartoDarkLabels2x": "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
     "CartoVoyager2": "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
 }
 

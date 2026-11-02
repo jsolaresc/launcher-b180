@@ -239,7 +239,8 @@ class SettingsActivity : Activity() {
 
         // Peso promedio de una tesela, medido con el mapa del AMBA (~12 KB las dos juntas).
         private const val KB_DARK = 4
-        private const val KB_LIGHT = 8
+        private const val KB_DARK_LABELS = 5
+        private const val KB_LIGHT = 6
     }
 
     private fun setupOfflineMap() {
@@ -290,14 +291,20 @@ class SettingsActivity : Activity() {
 
     private fun sources() = when (Prefs.theme(this)) {
         Prefs.THEME_LIGHT -> listOf(NavMap.LIGHT_TILES)
-        Prefs.THEME_DARK -> listOf(NavMap.DARK_TILES)
-        else -> listOf(NavMap.DARK_TILES, NavMap.LIGHT_TILES)
+        Prefs.THEME_DARK -> listOf(NavMap.DARK_TILES, NavMap.DARK_LABELS)
+        else -> listOf(NavMap.DARK_TILES, NavMap.DARK_LABELS, NavMap.LIGHT_TILES)
     }
 
     /** Teselas de las zonas, sumando los temas que se van a bajar. */
     private fun estimateMb(boxes: List<BoundingBox>): Int {
         val tiles = boxes.sumOf { tileCount(it) }
-        val kb = sources().sumOf { if (it === NavMap.DARK_TILES) KB_DARK else KB_LIGHT }
+        val kb = sources().sumOf {
+            when {
+                it === NavMap.DARK_TILES -> KB_DARK
+                it === NavMap.DARK_LABELS -> KB_DARK_LABELS
+                else -> KB_LIGHT
+            }
+        }
         return (tiles.toLong() * kb / 1024).toInt()
     }
 

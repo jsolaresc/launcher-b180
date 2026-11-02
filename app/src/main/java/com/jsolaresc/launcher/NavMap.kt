@@ -19,6 +19,9 @@ import android.view.View
 import android.widget.TextView
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.MapTileProviderBasic
+import org.osmdroid.views.overlay.TilesOverlay
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
@@ -38,7 +41,26 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         private val BUENOS_AIRES = GeoPoint(-34.6037, -58.3816)
         private const val FOLLOW_ZOOM = 17.0
 
-        val DARK_TILES = CartoTiles("CartoDark2", "dark_all")
+        /** Oscuro en dos capas: calles sin nombres + nombres en alta resolución (se leen mucho mejor). */
+        val DARK_TILES = CartoTiles("CartoDarkBase", "dark_nolabels")
+        val DARK_LABELS = CartoTiles("CartoDarkLabels2x", "dark_only_labels", retina = true)
+
+        /** Más contraste para el oscuro: el original es muy tenue en la pantalla del estéreo. */
+        private fun contrast(scale: Float, offset: Float, saturation: Float): ColorMatrixColorFilter {
+            val m = ColorMatrix()
+            m.setSaturation(saturation)
+            m.postConcat(
+                ColorMatrix(
+                    floatArrayOf(
+                        scale, 0f, 0f, 0f, offset,
+                        0f, scale, 0f, 0f, offset,
+                        0f, 0f, scale, 0f, offset,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                )
+            )
+            return ColorMatrixColorFilter(m)
+        }
         val LIGHT_TILES = CartoTiles("CartoVoyager2", "rastertiles/voyager")
 
         /** Debe llamarse antes de inflar el layout que contiene el MapView. */
@@ -109,6 +131,17 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         // Proveedor propio para poder no guardar lo recorrido (opción en Ajustes).
         map.tileProvider = MapTileProviderBasic(activity.applicationContext, tiles, TileCache(activity.applicationContext))
         map.setTileSource(tiles)
+        if (Theme.isNight(activity)) {
+            map.overlayManager.tilesOverlay.setColorFilter(contrast(1.8f, -8f, 0.6f))
+            val labels = TilesOverlay(
+                MapTileProviderBasic(activity.applicationContext, DARK_LABELS, TileCache(activity.applicationContext)),
+                activity.applicationContext
+            )
+            labels.loadingBackgroundColor = Color.TRANSPARENT
+            labels.loadingLineColor = Color.TRANSPARENT
+            labels.setColorFilter(contrast(1.6f, 0f, 1f))
+            map.overlays.add(0, labels)
+        }
         map.setMultiTouchControls(true)
         map.zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         map.isTilesScaledToDpi = true
@@ -135,7 +168,7 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
             follow = true
             recenter.visibility = View.GONE
             map.controller.setZoom(FOLLOW_ZOOM)
-            lastFix?.let { map.controller.animateTo(GeoPoint(it.latitude, it.longitude)) }
+            lastFix?.let { map.controller.animateTo(GeoPoint(it.latitude, it.longitude), null, 600L, -(me.bearing ?: 0f)) }
         }
     }
 
@@ -202,7 +235,15 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
 
         if (location.provider == LocationManager.GPS_PROVIDER) showStatus(null)
 
-        if (follow) map.controller.setCenter(me.point)
+        if (follow) {
+            // Rumbo arriba: la flecha queda fija apuntando hacia arriba y gira el mapa.
+            val b = me.bearing
+            if (b != null && location.hasSpeed() && location.speed > 1.5f) {
+                map.controller.animateTo(me.point, null, 900L, -b)
+            } else {
+                map.controller.setCenter(me.point)
+            }
+        }
         map.invalidate()
         onLocation?.invoke(location)
     }
@@ -248,14 +289,17 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
 
             canvas.drawCircle(x, y, 22f * d, halo)
 
-            // Nombre de la calle, en una píldora debajo de la flecha.
+            // Nombre de la calle, en una píldora debajo de la flecha (derecha aunque gire el mapa).
             street?.let { name ->
+                canvas.save()
+                canvas.rotate(-mapView.mapOrientation, x, y)
                 label.textSize = 11f * d
                 val text = if (name.length > 32) name.take(31) + "…" else name
                 val w = label.measureText(text) / 2 + 9f * d
                 val top = y + 25f * d
                 canvas.drawRoundRect(x - w, top, x + w, top + 20f * d, 10f * d, 10f * d, pill)
                 canvas.drawText(text, x, top + 14f * d, label)
+                canvas.restore()
             }
             canvas.drawCircle(x, y, 11f * d, ring)
 

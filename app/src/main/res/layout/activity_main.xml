@@ -66,6 +66,19 @@
                     android:text="@string/where_to"
                     android:textColor="@color/muted"
                     android:textSize="13sp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/where_to_hint"
+                    android:textColor="@color/muted"
+                    android:alpha="0.7"
+                    android:textSize="10sp" />
             </LinearLayout>
 
             <!-- Indicación de Google Maps (de su notificación de navegación) -->

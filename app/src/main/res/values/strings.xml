@@ -113,6 +113,11 @@
     <string name="save_visited">Guardar las zonas que recorro</string>
     <string name="save_visited_hint">Con señal, lo que muestra el mapa queda guardado para verlo sin señal</string>
     <string name="offline_manage">Administrar</string>
+    <string name="where_to_hint">Navega con Google Maps</string>
+    <string name="clock_wrong_title">La fecha del estéreo está mal</string>
+    <string name="clock_wrong">El estéreo dice %1$s, pero el GPS dice %2$s. Con la fecha mal no anda nada que use internet: nombre de la calle, velocidad máxima, radares y clima. Activá "Fecha y hora automáticas" o corregila a mano.</string>
+    <string name="clock_fix">Corregir</string>
+    <string name="clock_later">Después</string>
     <string name="map_fullscreen">Mapa en pantalla completa</string>
     <string name="map_exit_fullscreen">Salir de pantalla completa</string>
     <string name="stereo_card">Equipo</string>
