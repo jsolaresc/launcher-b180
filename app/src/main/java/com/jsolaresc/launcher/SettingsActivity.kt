@@ -62,11 +62,43 @@ class SettingsActivity : Activity() {
         }
         findViewById<TextView>(R.id.settings_version).text = getString(R.string.version, version)
         findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
+        findViewById<View>(R.id.gmaps_notifications).setOnClickListener {
+            openFirst(
+                Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, GMAPS)
+            )
+        }
+        findViewById<View>(R.id.gmaps_pip).setOnClickListener {
+            openFirst(
+                Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS", android.net.Uri.parse("package:$GMAPS")),
+                Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS")
+            )
+        }
 
         setupTheme()
         setupBottomCard()
         setupVolumes()
         setupOfflineMap()
+    }
+
+    private val GMAPS = "com.google.android.apps.maps"
+
+    /** Abre la primera pantalla de ajustes que exista; si ninguna, la ficha de la app. */
+    private fun openFirst(vararg intents: Intent) {
+        for (i in intents) {
+            try {
+                startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return
+            } catch (e: Exception) {
+            }
+        }
+        try {
+            startActivity(
+                Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$GMAPS"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+        }
     }
 
     /** Ajustes del fabricante (desde ahí se entra a los de fábrica con el código). */
