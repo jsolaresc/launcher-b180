@@ -342,9 +342,10 @@ class MainActivity : Activity() {
     private fun renderNav() {
         val info = Nav.current
         val picking = pickingIndex != null
+        // Sin barra de búsqueda: el destino se elige en Organic Maps; el mapa gana espacio.
+        mapSearch.visibility = View.GONE
         if (info == null || picking) {
             navBanner.visibility = View.GONE
-            mapSearch.visibility = if (picking || alertVisible) View.GONE else View.VISIBLE
             return
         }
         mapSearch.visibility = View.GONE
@@ -357,6 +358,7 @@ class MainActivity : Activity() {
         navText.visibility = if (detail.isEmpty()) View.GONE else View.VISIBLE
         if (info.icon != null) {
             navIcon.setImageBitmap(info.icon)
+            if (info.tintIcon) navIcon.setColorFilter(Color.WHITE) else navIcon.clearColorFilter()
             navIcon.visibility = View.VISIBLE
         } else {
             navIcon.visibility = View.GONE
@@ -527,6 +529,20 @@ class MainActivity : Activity() {
     }
 
     private fun navigateTo(place: Place) {
+        // Con Organic Maps: arma la ruta desde tu posición y vuelve solo al inicio al arrancar.
+        val here = navMap.lastFix
+        if (here != null && packageManager.getLaunchIntentForPackage(NavLaunch.ORGANIC) != null) {
+            val name = Uri.encode(place.name)
+            val uri = "om://route?sll=${here.latitude},${here.longitude}&saddr=${Uri.encode(getString(R.string.my_location))}" +
+                "&dll=${place.lat},${place.lon}&daddr=$name&type=vehicle"
+            try {
+                NavLaunch.begin()
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage(NavLaunch.ORGANIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return
+            } catch (e: Exception) {
+                NavLaunch.started()
+            }
+        }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${place.lat},${place.lon}"))
             .setPackage("com.google.android.apps.maps")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

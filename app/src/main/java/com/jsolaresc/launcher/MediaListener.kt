@@ -23,12 +23,35 @@ class MediaListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) = handle(sbn)
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        if (sbn.packageName == Nav.MAPS_PACKAGE) Nav.remove(sbn.key)
+        if (sbn.packageName == Nav.MAPS_PACKAGE || sbn.packageName == NavLaunch.ORGANIC) Nav.remove(sbn.key)
     }
 
     private fun handle(sbn: StatusBarNotification) {
-        if (sbn.packageName != Nav.MAPS_PACKAGE) return
         val n = sbn.notification
+        if (sbn.packageName == NavLaunch.ORGANIC) {
+            // Organic Maps: canal "NAVIGATION". Título = distancia al giro, texto = próxima calle.
+            if (n.channelId != "NAVIGATION") return
+            val extras = n.extras
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+            val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+            if (title.isNullOrBlank() && text.isNullOrBlank()) return
+            val first = Nav.current == null
+            Nav.update(Nav.Info(sbn.key, title, text, null, largeIcon(n), tintIcon = true))
+            // Arrancó la navegación pedida desde un destino rápido: volver al inicio.
+            if (first && NavLaunch.returnHome) {
+                NavLaunch.returnHome = false
+                NavLaunch.started()
+                try {
+                    startActivity(
+                        android.content.Intent(this, MainActivity::class.java)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    )
+                } catch (e: Exception) {
+                }
+            }
+            return
+        }
+        if (sbn.packageName != Nav.MAPS_PACKAGE) return
         // La de navegación es la notificación fija ("en curso") de Maps.
         val ongoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
         if (!ongoing && n.category != Notification.CATEGORY_NAVIGATION) return
@@ -65,7 +88,15 @@ class MediaListener : NotificationListenerService() {
 object Nav {
     const val MAPS_PACKAGE = "com.google.android.apps.maps"
 
-    data class Info(val key: String, val title: String?, val text: String?, val sub: String?, val icon: Bitmap?)
+    data class Info(
+        val key: String,
+        val title: String?,
+        val text: String?,
+        val sub: String?,
+        val icon: Bitmap?,
+        /** El ícono de giro de Organic Maps viene de color: se pinta blanco para el cartel verde. */
+        val tintIcon: Boolean = false
+    )
 
     @Volatile
     var current: Info? = null

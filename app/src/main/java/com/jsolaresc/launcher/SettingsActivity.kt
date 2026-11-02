@@ -62,6 +62,9 @@ class SettingsActivity : Activity() {
         }
         findViewById<TextView>(R.id.settings_version).text = getString(R.string.version, version)
         findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
+        findViewById<View>(R.id.nav_auto_start).setOnClickListener {
+            openFirst(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
         findViewById<View>(R.id.gmaps_notifications).setOnClickListener {
             openFirst(
                 Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)

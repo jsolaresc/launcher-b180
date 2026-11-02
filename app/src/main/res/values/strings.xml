@@ -55,6 +55,7 @@
     <string name="place_move">Cambiar ubicación</string>
     <string name="place_delete">Borrar</string>
     <string name="place_no_maps">Google Maps no está instalado</string>
+    <string name="my_location">Mi ubicación</string>
     <string name="source_title">Reproducir desde</string>
     <string name="source_add">Agregar otra app de música</string>
     <string name="source_bt">Bluetooth</string>
@@ -150,6 +151,11 @@
     <string name="area_amba">AMBA</string>
     <string name="area_around">Alrededor · %1$d km</string>
     <string name="stereo_settings">Ajustes del estéreo</string>
+    <string name="nav_starter_label">Launcher B180 · iniciar navegación</string>
+    <string name="nav_starter_desc">Al tocar un destino rápido del launcher, toca "Iniciar" en Organic Maps por vos y vuelve al inicio. No hace nada más.</string>
+    <string name="nav_card">Navegación</string>
+    <string name="nav_card_hint">Los destinos rápidos navegan con Organic Maps y las indicaciones se ven en el inicio. Activá "iniciar navegación" para que arranque sola, sin tocar Iniciar.</string>
+    <string name="nav_auto_start">Iniciar sola</string>
     <string name="gmaps_card">Google Maps</string>
     <string name="gmaps_card_hint">Para que Maps no tape el launcher al navegar: apagá sus avisos emergentes (Navegación → sin "mostrar en pantalla") y la ventana flotante.</string>
     <string name="gmaps_notifications">Avisos de Maps</string>
