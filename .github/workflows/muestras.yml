@@ -1,0 +1,26 @@
+name: Muestras de mapa
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  muestras:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bajar muestras
+        env:
+          CARTO_KEY: ${{ secrets.CARTO_KEY }}
+        run: python3 tools/muestras.py
+      - name: Publicar en la rama muestras
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan muestras
+          git rm -rq --cached .
+          git add muestras
+          git commit -qm "Muestras de teselas"
+          git push -f origin muestras
