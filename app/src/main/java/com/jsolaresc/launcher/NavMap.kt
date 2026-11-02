@@ -40,6 +40,9 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     companion object {
         private val BUENOS_AIRES = GeoPoint(-34.6037, -58.3816)
         private const val FOLLOW_ZOOM = 17.0
+        /** 1/1/2025: un GPS que informa algo anterior tiene la falla de la vuelta de semana. */
+        private const val GPS_MIN_VALID = 1_735_689_600_000L
+        private const val GPS_ROLLOVER = 1024L * 7 * 24 * 3600 * 1000
 
         /** Oscuro en dos capas: calles sin nombres + nombres en alta resolución (se leen mucho mejor). */
         val DARK_TILES = CartoTiles("CartoDarkBase", "dark_nolabels")
@@ -101,6 +104,7 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         private set
     private var running = false
     private var gpsStatus: String? = null
+    private var gpsPrimed = false
 
     /** Cada ubicación nueva (para velocidad, máxima, distancias y clima). */
     var onLocation: ((Location) -> Unit)? = null
@@ -189,8 +193,20 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         } catch (e: Exception) {
             false
         }
+        primeGps()
         try {
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this)
+        } catch (e: Exception) {
+        }
+        // Mientras el GPS no engancha, la ubicación por WiFi/red (si el estéreo la tiene) ubica el mapa.
+        try {
+            if (locationManager.allProviders.contains(LocationManager.NETWORK_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000L, 0f, this)
+            }
+        } catch (e: Exception) {
+        }
+        try {
+            locationManager.registerGnssStatusCallback(gnssCallback)
         } catch (e: Exception) {
         }
         val last = try {
@@ -209,6 +225,7 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         if (running) {
             try {
                 locationManager.removeUpdates(this)
+                locationManager.unregisterGnssStatusCallback(gnssCallback)
             } catch (e: Exception) {
             }
         }
@@ -227,13 +244,61 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         statusText.visibility = if (text == null) View.GONE else View.VISIBLE
     }
 
+    /**
+     * Arranque en frío más rápido: pide al sistema que le pase la hora y los datos de ayuda
+     * (XTRA/EPO) al chip GPS. Si el estéreo no los soporta, no pasa nada. Una vez por arranque.
+     */
+    private fun primeGps() {
+        if (gpsPrimed) return
+        gpsPrimed = true
+        for (cmd in listOf("force_time_injection", "force_xtra_injection")) {
+            try {
+                locationManager.sendExtraCommand(LocationManager.GPS_PROVIDER, cmd, null)
+            } catch (e: Exception) {
+            }
+        }
+    }
+
+    /** Satélites a la vista y usados: se muestra mientras busca, para saber que avanza. */
+    private val gnssCallback = object : android.location.GnssStatus.Callback() {
+        override fun onSatelliteStatusChanged(status: android.location.GnssStatus) {
+            if (System.currentTimeMillis() - lastGpsAt < 5000) return
+            var used = 0
+            for (i in 0 until status.satelliteCount) if (status.usedInFix(i)) used++
+            val text = if (lastFix != null && lastFix?.provider == LocationManager.NETWORK_PROVIDER)
+                activity.getString(R.string.gps_approx)
+            else activity.getString(R.string.gps_searching_sats, used, status.satelliteCount)
+            activity.runOnUiThread { showStatus(text) }
+        }
+    }
+
+    private var lastGpsAt = 0L
+    private var prevGps: Location? = null
+
     override fun onLocationChanged(location: Location) {
+        val isGps = location.provider == LocationManager.GPS_PROVIDER
+        // Falla de "vuelta de semana" del GPS: este chip informa la fecha 1024 semanas
+        // (~19,6 años) atrás, por eso el estéreo mostraba "domingo 18 mar" de 2007.
+        if (isGps) while (location.time < GPS_MIN_VALID) location.time += GPS_ROLLOVER
+        // La de red solo sirve mientras el GPS no tiene posición reciente.
+        if (!isGps && System.currentTimeMillis() - lastGpsAt < 10_000) return
+        if (isGps && android.os.SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos < 60_000_000_000L) {
+            lastGpsAt = System.currentTimeMillis()
+            // Algunos GPS no informan velocidad: se calcula con la posición anterior.
+            val prev = prevGps
+            if (!location.hasSpeed() && prev != null) {
+                val dt = (location.time - prev.time) / 1000f
+                if (dt in 0.5f..5f) location.speed = prev.distanceTo(location) / dt
+            }
+            prevGps = location
+        }
         lastFix = location
         me.point = GeoPoint(location.latitude, location.longitude)
         // El rumbo del GPS solo es confiable en movimiento.
         if (location.hasBearing() && location.hasSpeed() && location.speed > 1.5f) me.bearing = location.bearing
 
-        if (location.provider == LocationManager.GPS_PROVIDER) showStatus(null)
+        if (isGps && lastGpsAt != 0L) showStatus(null)
+        else if (!isGps) showStatus(activity.getString(R.string.gps_approx))
 
         if (follow) {
             // Rumbo arriba: la flecha queda fija apuntando hacia arriba y gira el mapa.

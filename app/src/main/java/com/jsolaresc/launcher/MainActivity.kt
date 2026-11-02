@@ -323,7 +323,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderSpeed(loc: Location?) {
-        val fresh = loc != null && System.currentTimeMillis() - loc.time < 10_000 && loc.hasSpeed()
+        val fresh = loc != null && android.os.SystemClock.elapsedRealtimeNanos() - loc.elapsedRealtimeNanos < 10_000_000_000L && loc.hasSpeed()
         val kmh = if (fresh) (loc!!.speed * 3.6f).roundToInt() else null
         speedText.text = kmh?.toString() ?: "--"
 
@@ -428,7 +428,7 @@ class MainActivity : Activity() {
         val sub = cardSub ?: return
         when (bottomCard) {
             Prefs.CARD_SPEEDO -> {
-                val fresh = loc != null && System.currentTimeMillis() - loc.time < 10_000 && loc.hasSpeed()
+                val fresh = loc != null && android.os.SystemClock.elapsedRealtimeNanos() - loc.elapsedRealtimeNanos < 10_000_000_000L && loc.hasSpeed()
                 main.text = if (fresh) "${(loc!!.speed * 3.6f).roundToInt()} km/h" else "-- km/h"
                 sub.text = currentLimit?.let { getString(R.string.speedo_limit, it) } ?: ""
             }

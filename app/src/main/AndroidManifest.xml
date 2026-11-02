@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Pedirle al GPS que cargue hora y datos de ayuda (arranca más rápido). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS" />
     <!-- Leer el mapa del pendrive (Importar desde USB). -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
