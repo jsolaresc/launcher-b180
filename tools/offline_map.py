@@ -23,11 +23,11 @@ AMBA = [
     (-34.64, -57.88, -35.00, -58.50),  # Zona Sur: Avellaneda, Quilmes, Ezeiza, La Plata
 ]
 
-# Nombres iguales a NavMap.DARK_TILES / DARK_LABELS / LIGHT_TILES.
+# Nombres iguales a NavMap.DARK_TILES / LIGHT_BASE.
 SOURCES = {
+    # Sin nombres: los nombres de las calles los dibuja el launcher con calles-amba.sqlite.
     "CartoDarkBase": "https://basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png",
-    "CartoDarkLabels2x": "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
-    "CartoVoyager2": "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+    "CartoLightBase": "https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png",
 }
 
 # Clave gratuita de CARTO: sin ella las teselas traen la marca "API KEY REQUIRED".

@@ -62,9 +62,6 @@ class SettingsActivity : Activity() {
         }
         findViewById<TextView>(R.id.settings_version).text = getString(R.string.version, version)
         findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
-        findViewById<View>(R.id.nav_auto_start).setOnClickListener {
-            openFirst(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }
         findViewById<View>(R.id.gmaps_notifications).setOnClickListener {
             openFirst(
                 Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -325,10 +322,16 @@ class SettingsActivity : Activity() {
         radiusEstimate.text = if (boxes != null) getString(R.string.offline_estimate, estimateMb(boxes)) else ""
     }
 
-    private fun sources() = when (Prefs.theme(this)) {
-        Prefs.THEME_LIGHT -> listOf(NavMap.LIGHT_TILES)
-        Prefs.THEME_DARK -> listOf(NavMap.DARK_TILES, NavMap.DARK_LABELS)
-        else -> listOf(NavMap.DARK_TILES, NavMap.DARK_LABELS, NavMap.LIGHT_TILES)
+    /** Con calles-amba, los nombres los dibuja el launcher: se bajan las teselas sin nombres. */
+    private fun sources(): List<CartoTiles> {
+        val own = Roads.available(this)
+        val dark = if (own) listOf(NavMap.DARK_TILES) else listOf(NavMap.DARK_TILES, NavMap.DARK_LABELS)
+        val light = listOf(if (own) NavMap.LIGHT_BASE else NavMap.LIGHT_TILES)
+        return when (Prefs.theme(this)) {
+            Prefs.THEME_LIGHT -> light
+            Prefs.THEME_DARK -> dark
+            else -> dark + light
+        }
     }
 
     /** Teselas de las zonas, sumando los temas que se van a bajar. */
@@ -462,7 +465,7 @@ class SettingsActivity : Activity() {
 
     private fun importFromUsb() {
         if (importing || MapImport.running || activeButton != null) return
-        findOnUsb()?.let { importFile(it, temporary = false); return }
+        if (importFound()) return
         if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), reqStorage)
             return
@@ -473,12 +476,51 @@ class SettingsActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != reqStorage) return
-        val found = findOnUsb()
-        if (found != null) importFile(found, temporary = false) else pickFile()
+        if (!importFound()) pickFile()
+    }
+
+    private val callesName = "calles-amba.sqlite"
+
+    /** Carga lo que haya en el pendrive: calles y radares (rápido) y el mapa (en tandas). */
+    private fun importFound(): Boolean {
+        val calles = findOnUsb(callesName)
+        val mapa = findOnUsb(importName)
+        if (calles == null && mapa == null) return false
+        if (calles != null) importCalles(calles, temporary = false)
+        if (mapa != null) importFile(mapa, temporary = false)
+        return true
+    }
+
+    /** calles-amba: se copia tal cual (unos 20 MB) y el inicio pasa a usarlo. */
+    private fun importCalles(file: File, temporary: Boolean) {
+        worker.execute {
+            val ok = try {
+                val tmp = File(filesDir, Roads.FILE + ".tmp")
+                file.copyTo(tmp, overwrite = true)
+                Roads.reset()
+                tmp.renameTo(Roads.file(this))
+            } catch (e: Exception) {
+                false
+            }
+            if (temporary) file.delete()
+            Roads.reset()
+            main.post {
+                Toast.makeText(this, if (ok) R.string.import_calles_done else R.string.import_failed, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** Archivo elegido con el selector: se mira qué es por su contenido. */
+    private fun isCallesFile(file: File): Boolean = try {
+        android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ways'", null).use { it.moveToFirst() }
+        }
+    } catch (e: Exception) {
+        false
     }
 
     /** Busca el archivo en la raíz (o una carpeta adentro) de cada memoria conectada. */
-    private fun findOnUsb(): File? {
+    private fun findOnUsb(name: String): File? {
         val roots = LinkedHashSet<File>()
         try {
             val sm = getSystemService(Context.STORAGE_SERVICE) as android.os.storage.StorageManager
@@ -494,10 +536,10 @@ class SettingsActivity : Activity() {
             File(base).listFiles()?.forEach { roots.add(it) }
         }
         for (root in roots) {
-            val direct = File(root, importName)
+            val direct = File(root, name)
             if (direct.canRead()) return direct
             root.listFiles()?.forEach { sub ->
-                val f = File(sub, importName)
+                val f = File(sub, name)
                 if (f.canRead()) return f
             }
         }
@@ -554,7 +596,8 @@ class SettingsActivity : Activity() {
             }
             main.post {
                 importing = false
-                if (ok) importFile(temp, temporary = true) else {
+                if (ok && isCallesFile(temp)) importCalles(temp, temporary = true)
+                else if (ok) importFile(temp, temporary = true) else {
                     temp.delete()
                     offlineStatus.setText(R.string.import_failed)
                 }

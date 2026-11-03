@@ -99,8 +99,10 @@ class Music(private val ctx: Context, private val onChange: () -> Unit) {
     val title: String? get() = controller?.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
     val artist: String?
         get() = controller?.metadata?.let {
-            it.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: it.getString(MediaMetadata.METADATA_KEY_ALBUM)
+            it.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: it.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
         }
+
+    val album: String? get() = controller?.metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM)
 
     /** Portada, si la fuente la manda (las apps del estéreo sí; el Bluetooth de este estéreo, no). */
     val art: Bitmap?

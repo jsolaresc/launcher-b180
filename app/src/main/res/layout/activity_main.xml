@@ -441,25 +441,30 @@
                         android:layout_weight="1"
                         android:orientation="vertical">
 
-                        <TextView
+                        <com.jsolaresc.launcher.PingPongText
                             android:id="@+id/track_title"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:ellipsize="end"
-                            android:maxLines="2"
                             android:textColor="@color/text"
                             android:textSize="13sp"
                             android:textStyle="bold" />
 
-                        <TextView
+                        <com.jsolaresc.launcher.PingPongText
                             android:id="@+id/track_artist"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:ellipsize="end"
-                            android:maxLines="2"
                             android:textColor="@color/muted"
                             android:textSize="10sp" />
+
+                        <com.jsolaresc.launcher.PingPongText
+                            android:id="@+id/track_album"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:textColor="@color/muted"
+                            android:textSize="10sp"
+                            android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
 

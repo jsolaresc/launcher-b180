@@ -26,7 +26,24 @@ class CartoTiles(name: String, private val style: String, private val retina: Bo
         /** Nombres anteriores: lo guardado con ellos vino sin clave (con la marca) y se borra una vez. */
         private val OLD = listOf("CartoDarkMatter", "CartoVoyager", "CartoDark2")
 
+        /** Con calles-amba, estas teselas (nombres de CARTO) ya no se usan. */
+        private val LABELED = listOf("CartoDarkLabels2x", "CartoVoyager2")
+
+        fun purgeLabeled(ctx: Context) {
+            val prefs = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("purged_labeled", false) || !Roads.available(ctx)) return
+            val app = ctx.applicationContext
+            Executors.newSingleThreadExecutor().execute {
+                try {
+                    TileCache(app).deleteProviders(LABELED)
+                    prefs.edit().putBoolean("purged_labeled", true).apply()
+                } catch (e: Exception) {
+                }
+            }
+        }
+
         fun purgeOld(ctx: Context) {
+            purgeLabeled(ctx)
             val prefs = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
             if (prefs.getBoolean("purged_old_tiles_2", false)) return
             val app = ctx.applicationContext

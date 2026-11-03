@@ -61,6 +61,12 @@ class AppsActivity : Activity() {
             }
         }
 
+        if (pickKey == null) setupTrash(grid)
+        reload()
+    }
+
+    private fun reload() {
+        val grid = findViewById<GridView>(R.id.apps_grid)
         // Cargar íconos fuera del hilo principal: en el 8227L tarda.
         Thread {
             val loaded = loadApps()
@@ -69,6 +75,63 @@ class AppsActivity : Activity() {
                 grid.adapter = Adapter()
             }
         }.start()
+    }
+
+    /** Al volver de desinstalar, la lista se actualiza. */
+    private var uninstalling = false
+
+    override fun onResume() {
+        super.onResume()
+        if (uninstalling) {
+            uninstalling = false
+            reload()
+        }
+    }
+
+    /** Mantener apretada una app y arrastrarla al tacho: Android pide confirmar la desinstalación. */
+    private fun setupTrash(grid: GridView) {
+        val trash = findViewById<View>(R.id.apps_trash)
+        grid.setOnItemLongClickListener { _, view, position, _ ->
+            val app = apps[position]
+            val data = android.content.ClipData.newPlainText("app", app.component.packageName)
+            trash.visibility = View.VISIBLE
+            @Suppress("DEPRECATION")
+            if (android.os.Build.VERSION.SDK_INT >= 24) view.startDragAndDrop(data, View.DragShadowBuilder(view), app, 0)
+            else view.startDrag(data, View.DragShadowBuilder(view), app, 0)
+            true
+        }
+        trash.setOnDragListener { v, event ->
+            when (event.action) {
+                android.view.DragEvent.ACTION_DRAG_ENTERED -> v.setBackgroundResource(R.drawable.bg_trash_active)
+                android.view.DragEvent.ACTION_DRAG_EXITED -> v.setBackgroundResource(R.drawable.bg_trash)
+                android.view.DragEvent.ACTION_DROP -> (event.localState as? AppEntry)?.let { uninstall(it) }
+                android.view.DragEvent.ACTION_DRAG_ENDED -> {
+                    v.setBackgroundResource(R.drawable.bg_trash)
+                    v.visibility = View.GONE
+                }
+            }
+            true
+        }
+    }
+
+    private fun uninstall(app: AppEntry) {
+        val pkg = app.component.packageName
+        val system = try {
+            (packageManager.getApplicationInfo(pkg, 0).flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+        } catch (e: Exception) {
+            true
+        }
+        if (system) {
+            Toast.makeText(this, getString(R.string.apps_system, app.label), Toast.LENGTH_LONG).show()
+            return
+        }
+        uninstalling = true
+        try {
+            startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg")))
+        } catch (e: Exception) {
+            uninstalling = false
+            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun loadApps(): List<AppEntry> {

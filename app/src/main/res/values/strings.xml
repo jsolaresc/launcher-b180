@@ -116,6 +116,8 @@
     <string name="save_visited">Guardar las zonas que recorro</string>
     <string name="save_visited_hint">Con señal, lo que muestra el mapa queda guardado para verlo sin señal</string>
     <string name="offline_manage">Administrar</string>
+    <string name="apps_trash">Soltá acá para desinstalar</string>
+    <string name="apps_system">%1$s es del sistema: no se puede desinstalar</string>
     <string name="where_to_hint">Navega con Google Maps</string>
     <string name="where_to_hint_app">Navega con %1$s</string>
     <string name="clock_wrong_title">La fecha del estéreo está mal</string>
@@ -127,7 +129,8 @@
     <string name="stereo_card">Equipo</string>
     <string name="stereo_card_hint">Configuración original del estéreo. Los ajustes de fábrica (código 8888) están en Sobre Dispositivo.</string>
     <string name="offline_import">Desde USB</string>
-    <string name="import_not_found">Copiá mapa-amba.sqlite a la raíz del pendrive y volvé a tocar "Desde USB"</string>
+    <string name="import_calles_done">Listo: calles y radares del AMBA cargados (funcionan sin conexión)</string>
+    <string name="import_not_found">Copiá mapa-amba.sqlite y calles-amba.sqlite a la raíz del pendrive y volvé a tocar \"Desde USB\"</string>
     <string name="import_copying">Copiando del pendrive… %1$d MB</string>
     <string name="import_merging">Guardando el mapa en el estéreo…</string>
     <string name="import_progress">Guardando el mapa en el estéreo… %1$d %% · podés salir de Ajustes, sigue solo</string>
@@ -152,11 +155,8 @@
     <string name="area_amba">AMBA</string>
     <string name="area_around">Alrededor · %1$d km</string>
     <string name="stereo_settings">Ajustes del estéreo</string>
-    <string name="nav_starter_label">Launcher B180 · iniciar navegación</string>
-    <string name="nav_starter_desc">Al tocar un destino rápido del launcher, toca "Iniciar" en Organic Maps por vos y vuelve al inicio. No hace nada más.</string>
     <string name="nav_card">Navegación</string>
-    <string name="nav_card_hint">Los destinos rápidos navegan con Organic Maps y las indicaciones se ven en el inicio. Activá "iniciar navegación" para que arranque sola, sin tocar Iniciar.</string>
-    <string name="nav_auto_start">Iniciar sola</string>
+    <string name="nav_card_hint">Los destinos rápidos navegan con OsmAnd sin conexión: arranca solo, volvés al inicio y ahí ves cada giro. La voz la da OsmAnd.</string>
     <string name="gmaps_card">Google Maps</string>
     <string name="gmaps_card_hint">Para que Maps no tape el launcher al navegar: apagá sus avisos emergentes (Navegación → sin "mostrar en pantalla") y la ventana flotante.</string>
     <string name="gmaps_notifications">Avisos de Maps</string>

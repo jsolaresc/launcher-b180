@@ -65,6 +65,7 @@ class MainActivity : Activity() {
     private lateinit var sourceButton: View
     private lateinit var sourceIcon: ImageView
     private lateinit var musicSource: TextView
+    private lateinit var trackAlbum: TextView
     private lateinit var playButton: ImageButton
     private lateinit var trackTitle: TextView
     private lateinit var trackArtist: TextView
@@ -126,6 +127,7 @@ class MainActivity : Activity() {
     private var cardNeedle: ImageView? = null
 
     private var online = false
+    private var startedWithRoads = false
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val volumeReceiver = object : BroadcastReceiver() {
@@ -171,6 +173,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        startedWithRoads = Roads.available(this)
         NavMap.configure(this)
         CartoTiles.purgeOld(this)
         startedNight = Theme.isNight(this)
@@ -529,18 +532,17 @@ class MainActivity : Activity() {
     }
 
     private fun navigateTo(place: Place) {
-        // Con Organic Maps: arma la ruta desde tu posición y vuelve solo al inicio al arrancar.
-        val here = navMap.lastFix
-        if (here != null && packageManager.getLaunchIntentForPackage(NavLaunch.ORGANIC) != null) {
-            val name = Uri.encode(place.name)
-            val uri = "om://route?sll=${here.latitude},${here.longitude}&saddr=${Uri.encode(getString(R.string.my_location))}" +
-                "&dll=${place.lat},${place.lon}&daddr=$name&type=vehicle"
+        // Con OsmAnd: navega directo desde tu posición (sin confirmar) y el launcher vuelve al inicio.
+        val osmand = NavLaunch.osmand(this)
+        if (osmand != null) {
+            val uri = "osmand.api://navigate?dest_lat=${place.lat}&dest_lon=${place.lon}" +
+                "&dest_name=${Uri.encode(place.name)}&profile=car&force=true"
             try {
-                NavLaunch.begin()
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage(NavLaunch.ORGANIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                NavLaunch.returnHome = true
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage(osmand).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 return
             } catch (e: Exception) {
-                NavLaunch.started()
+                NavLaunch.returnHome = false
             }
         }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${place.lat},${place.lon}"))
@@ -653,6 +655,7 @@ class MainActivity : Activity() {
         playButton = findViewById(R.id.btn_play)
         trackTitle = findViewById(R.id.track_title)
         trackArtist = findViewById(R.id.track_artist)
+        trackAlbum = findViewById(R.id.track_album)
         cover = findViewById(R.id.cover)
         coverPlaceholder = findViewById(R.id.cover_placeholder)
         progressGroup = findViewById(R.id.progress_group)
@@ -940,6 +943,23 @@ class MainActivity : Activity() {
         }
     }
 
+    /** "Bluetooth · <nombre del celular conectado>", o "Bluetooth" si no se puede saber. */
+    private fun btLabel(): String {
+        val name = try {
+            val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+            adapter?.bondedDevices?.firstOrNull { d ->
+                try {
+                    d.javaClass.getMethod("isConnected").invoke(d) as Boolean
+                } catch (e: Exception) {
+                    false
+                }
+            }?.name
+        } catch (e: Exception) {
+            null
+        }
+        return if (name.isNullOrBlank()) "Bluetooth" else "Bluetooth · $name"
+    }
+
     private fun renderMusic() {
         bindSourceIcon(sourceIcon, source)
         sourceIcon.setPadding(
@@ -948,14 +968,18 @@ class MainActivity : Activity() {
             if (source.iconRes != null) (3 * resources.displayMetrics.density).toInt() else 0,
             if (source.iconRes != null) (3 * resources.displayMetrics.density).toInt() else 0
         )
-        musicSource.text = if (source.isBluetooth) "Bluetooth · celular" else source.name
+        musicSource.text = if (source.isBluetooth) btLabel() else source.name
+        trackAlbum.visibility = View.GONE
 
         if (source.sessionPackage == null) {
             renderTsMusic()
             return
         }
 
-        val art = music.art
+        // Sin portada desde el celular (Bluetooth): se busca por artista y canción.
+        val art = music.art ?: Covers.cached(this, music.artist, music.title).also {
+            if (it == null && music.hasSession) Covers.lookup(this, music.artist, music.title, online) { renderMusic() }
+        }
         cover.visibility = if (art != null) View.VISIBLE else View.GONE
         coverPlaceholder.visibility = if (art != null) View.GONE else View.VISIBLE
         if (art != null) cover.setImageBitmap(art)
@@ -968,6 +992,9 @@ class MainActivity : Activity() {
             music.hasSession -> {
                 trackTitle.text = music.title?.takeIf { it.isNotBlank() } ?: source.name
                 trackArtist.text = music.artist?.takeIf { it.isNotBlank() } ?: music.stateName
+                val album = music.album?.takeIf { it.isNotBlank() && it != music.title }
+                trackAlbum.text = album
+                trackAlbum.visibility = if (album != null) View.VISIBLE else View.GONE
             }
             source.sessionPackage == null -> {
                 trackTitle.text = source.name
@@ -1162,6 +1189,11 @@ class MainActivity : Activity() {
         handler.removeCallbacks(tsTick)
         handler.post(tsTick)
 
+        // Si se cargaron las calles sin conexión, el mapa cambia (nombres propios): se rearma.
+        if (startedWithRoads != Roads.available(this)) {
+            recreate()
+            return
+        }
         watchNetwork()
         findViewById<TextView>(R.id.where_to_hint).text = getString(R.string.where_to_hint_app, Dock.navigatorName(this))
         cameras.reloadIfCleared()

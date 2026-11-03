@@ -22,7 +22,7 @@ import kotlin.math.sqrt
  * muestran su máxima también sin señal.
  */
 /** onChange(máxima, nombre de la calle). */
-class SpeedLimit(ctx: Context, private val onChange: (Int?, String?) -> Unit) {
+class SpeedLimit(private val ctx: Context, private val onChange: (Int?, String?) -> Unit) {
 
     private val prefs = ctx.getSharedPreferences("maxspeed", Context.MODE_PRIVATE)
     private val executor = Executors.newSingleThreadExecutor()
@@ -42,7 +42,38 @@ class SpeedLimit(ctx: Context, private val onChange: (Int?, String?) -> Unit) {
         return "$lat,$lon,$sector"
     }
 
+    private var lastOffline = 0L
+    private var lastEmitted: Pair<Int?, String?>? = null
+
+    /** Con calles-amba cargado se resuelve sin conexión, al instante y en cualquier lado del AMBA. */
+    private fun updateOffline(loc: Location): Boolean {
+        if (!Roads.available(ctx)) return false
+        val now = System.currentTimeMillis()
+        if (now - lastOffline < 1000 || inFlight) return true
+        lastOffline = now
+        inFlight = true
+        val moving = loc.hasBearing() && loc.hasSpeed() && loc.speed >= 2f
+        val lat = loc.latitude
+        val lon = loc.longitude
+        val bearing = if (moving) loc.bearing.toDouble() else null
+        executor.execute {
+            val way = try {
+                Roads.best(ctx, lat, lon, bearing)
+            } catch (e: Exception) {
+                null
+            }
+            inFlight = false
+            val result = Pair(way?.maxspeed, way?.name)
+            if (way != null && result != lastEmitted) {
+                lastEmitted = result
+                main.post { onChange(result.first, result.second) }
+            }
+        }
+        return true
+    }
+
     fun update(loc: Location, online: Boolean) {
+        if (updateOffline(loc)) return
         // Parado o casi, el rumbo no sirve: se mantiene lo último.
         if (!loc.hasSpeed() || loc.speed < 2f) return
         val key = keyFor(loc)

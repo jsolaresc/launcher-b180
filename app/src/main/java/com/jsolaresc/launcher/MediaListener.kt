@@ -23,24 +23,30 @@ class MediaListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) = handle(sbn)
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        if (sbn.packageName == Nav.MAPS_PACKAGE || sbn.packageName == NavLaunch.ORGANIC) Nav.remove(sbn.key)
+        if (sbn.packageName == Nav.MAPS_PACKAGE || NavLaunch.isOsmand(sbn.packageName)) Nav.remove(sbn.key)
     }
 
     private fun handle(sbn: StatusBarNotification) {
         val n = sbn.notification
-        if (sbn.packageName == NavLaunch.ORGANIC) {
-            // Organic Maps: canal "NAVIGATION". Título = distancia al giro, texto = próxima calle.
-            if (n.channelId != "NAVIGATION") return
+        if (NavLaunch.isOsmand(sbn.packageName)) {
+            // OsmAnd: título = "120 m • Girar a la derecha"; texto largo = calle y lo que falta.
+            if (n.category != Notification.CATEGORY_NAVIGATION) return
             val extras = n.extras
             val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-            val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-            if (title.isNullOrBlank() && text.isNullOrBlank()) return
+            val big = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: extras.getCharSequence(Notification.EXTRA_TEXT))
+                ?.toString().orEmpty()
+            val lines = big.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+            if (title.isNullOrBlank() && lines.isEmpty()) return
             val first = Nav.current == null
-            Nav.update(Nav.Info(sbn.key, title, text, null, largeIcon(n), tintIcon = true))
+            Nav.update(
+                Nav.Info(
+                    sbn.key, title, lines.firstOrNull(), lines.drop(1).joinToString(" · ").ifBlank { null },
+                    largeIcon(n), tintIcon = true
+                )
+            )
             // Arrancó la navegación pedida desde un destino rápido: volver al inicio.
             if (first && NavLaunch.returnHome) {
                 NavLaunch.returnHome = false
-                NavLaunch.started()
                 try {
                     startActivity(
                         android.content.Intent(this, MainActivity::class.java)

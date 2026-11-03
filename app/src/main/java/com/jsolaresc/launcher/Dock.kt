@@ -22,8 +22,6 @@ object Dock {
 
     private const val PREFS = "dock"
     private const val MAPS_PACKAGE = "com.google.android.apps.maps"
-    /** Navegador sin conexión: si está instalado, es el que abre "Maps" en el dock. */
-    const val ORGANIC_PACKAGE = "app.organicmaps"
 
     /** Nombre del navegador que abre el dock (para los textos). */
     fun navigatorName(ctx: Context): String = when {
@@ -34,7 +32,7 @@ object Dock {
                 "Maps"
             }
         }
-        installed(ctx, ORGANIC_PACKAGE) -> "Organic Maps"
+        NavLaunch.osmand(ctx) != null -> "OsmAnd"
         else -> "Google Maps"
     }
 
@@ -63,7 +61,7 @@ object Dock {
     }
 
     private fun defaultIntent(ctx: Context, key: String): Intent? = when (key) {
-        MAPS -> ctx.packageManager.getLaunchIntentForPackage(ORGANIC_PACKAGE)
+        MAPS -> NavLaunch.osmand(ctx)?.let { ctx.packageManager.getLaunchIntentForPackage(it) }
             ?: ctx.packageManager.getLaunchIntentForPackage(MAPS_PACKAGE)
         SETTINGS -> Intent(Settings.ACTION_SETTINGS)
         MUSIC -> Intent(Intent.ACTION_MAIN).setComponent(BT_MUSIC)

@@ -33,15 +33,48 @@
             android:src="@drawable/ic_close" />
     </LinearLayout>
 
-    <GridView
-        android:id="@+id/apps_grid"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="4dp"
-        android:columnWidth="84dp"
-        android:horizontalSpacing="4dp"
-        android:listSelector="@drawable/bg_dock_button"
-        android:numColumns="auto_fit"
-        android:stretchMode="columnWidth"
-        android:verticalSpacing="4dp" />
+        android:layout_marginTop="4dp">
+
+        <GridView
+            android:id="@+id/apps_grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:columnWidth="84dp"
+            android:horizontalSpacing="4dp"
+            android:listSelector="@drawable/bg_dock_button"
+            android:numColumns="auto_fit"
+            android:stretchMode="columnWidth"
+            android:verticalSpacing="4dp" />
+
+        <!-- Tacho: aparece al mantener apretada una app; soltarla acá la desinstala. -->
+        <LinearLayout
+            android:id="@+id/apps_trash"
+            android:layout_width="260dp"
+            android:layout_height="64dp"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_trash"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_trash" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/apps_trash"
+                android:textColor="#F28B82"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

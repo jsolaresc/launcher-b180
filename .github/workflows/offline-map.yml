@@ -30,7 +30,7 @@ jobs:
           tag_name: mapa-amba
           name: Mapa del AMBA para cargar por USB
           body: |
-            Copiá mapa-amba.sqlite a la raíz del pendrive, conectalo al estéreo y en el launcher andá a Ajustes → Mapa sin conexión → Desde USB.
+            Copiá mapa-amba.sqlite y calles-amba.sqlite a la raíz del pendrive, conectalo al estéreo y en el launcher andá a Ajustes → Mapa sin conexión → Desde USB.
             Trae CABA y Zonas Norte (hasta Pilar y Escobar), Oeste (hasta General Rodríguez) y Sur (hasta La Plata), en tema claro y oscuro.
           files: mapa-amba.sqlite
           make_latest: "false"

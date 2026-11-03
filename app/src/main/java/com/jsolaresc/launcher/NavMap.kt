@@ -47,6 +47,8 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         /** Oscuro en dos capas: calles sin nombres + nombres en alta resolución (se leen mucho mejor). */
         val DARK_TILES = CartoTiles("CartoDarkBase", "dark_nolabels")
         val DARK_LABELS = CartoTiles("CartoDarkLabels2x", "dark_only_labels", retina = true)
+        /** Claro sin nombres (cuando los dibuja el launcher). */
+        val LIGHT_BASE = CartoTiles("CartoLightBase", "rastertiles/voyager_nolabels")
 
         /** Más contraste para el oscuro: el original es muy tenue en la pantalla del estéreo. */
         private fun contrast(scale: Float, offset: Float, saturation: Float): ColorMatrixColorFilter {
@@ -131,15 +133,27 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
     }
 
     init {
-        val tiles = if (Theme.isNight(activity)) DARK_TILES else LIGHT_TILES
+        val night = Theme.isNight(activity)
+        // Con calles-amba cargado, los nombres los dibuja el launcher (derechos y grandes):
+        // las teselas van sin nombres. Sin ese archivo, se usan los nombres de CARTO.
+        val ownLabels = Roads.available(activity)
+        val tiles = when {
+            night -> DARK_TILES
+            ownLabels -> LIGHT_BASE
+            else -> LIGHT_TILES
+        }
         // Proveedor propio para poder no guardar lo recorrido (opción en Ajustes).
         map.tileProvider = MapTileProviderBasic(activity.applicationContext, tiles, TileCache(activity.applicationContext))
         map.setTileSource(tiles)
-        if (Theme.isNight(activity)) {
+        if (night) {
             map.overlayManager.tilesOverlay.setColorFilter(contrast(1.8f, -8f, 0.6f))
             // Mientras carga, fondo oscuro (el gris de osmdroid, con más contraste, quedaba blanco).
             map.overlayManager.tilesOverlay.loadingBackgroundColor = Color.rgb(12, 12, 12)
             map.overlayManager.tilesOverlay.loadingLineColor = Color.rgb(12, 12, 12)
+        }
+        if (ownLabels) {
+            map.overlays.add(0, StreetLabels(activity.applicationContext, night))
+        } else if (night) {
             val labels = TilesOverlay(
                 MapTileProviderBasic(activity.applicationContext, DARK_LABELS, TileCache(activity.applicationContext)),
                 activity.applicationContext

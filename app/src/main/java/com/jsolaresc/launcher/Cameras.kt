@@ -72,7 +72,22 @@ class Cameras(
         map.overlays.add(overlay)
     }
 
+    /** Radares del archivo sin conexión (calles-amba): todo el AMBA, sin depender de internet. */
+    private var offlineData = false
+
+    private fun loadOffline(): Boolean {
+        val list = Roads.cameras(ctx) ?: return false
+        cameras = list.map {
+            val id = String.format(Locale.US, "%.4f,%.4f", it.lat, it.lon)
+            Camera(id, it.lat, it.lon, if (it.kind == 1) Camera.RED_LIGHT else Camera.SPEED, it.limit)
+        }
+        offlineData = true
+        map.invalidate()
+        return true
+    }
+
     private fun load() {
+        if (loadOffline()) return
         try {
             if (!file.exists()) return
             val o = JSONObject(file.readText())
@@ -93,6 +108,7 @@ class Cameras(
 
     /** Si en Ajustes se pidió actualizar los radares, se descarta lo cargado y se baja de nuevo con señal. */
     fun reloadIfCleared() {
+        if (!offlineData && loadOffline()) return
         if (!file.exists() && fetchedAt != 0L) {
             cameras = emptyList()
             fetchedAt = 0L
@@ -102,7 +118,7 @@ class Cameras(
     }
 
     fun update(loc: Location, online: Boolean) {
-        if (online) maybeFetch(loc)
+        if (online && !offlineData) maybeFetch(loc)
         checkAlert(loc)
     }
 
