@@ -1,0 +1,38 @@
+name: Calles y radares sin conexión
+
+# Se corre a mano o el día 1 de cada mes (después del mapa).
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "47 7 1 * *"
+
+permissions:
+  contents: write
+
+jobs:
+  calles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Herramientas
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+          pip install --quiet osmium
+
+      - name: Bajar OpenStreetMap de Argentina (Geofabrik)
+        run: curl -sSfL -o argentina.osm.pbf https://download.geofabrik.de/south-america/argentina-latest.osm.pbf
+
+      - name: Recortar el AMBA
+        run: osmium extract -b -59.0,-35.05,-57.8,-34.3 argentina.osm.pbf -o amba.osm.pbf --overwrite
+
+      - name: Armar calles-amba.sqlite
+        run: python3 tools/calles.py amba.osm.pbf calles-amba.sqlite && ls -lh calles-amba.sqlite
+
+      - name: Publicar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mapa-amba
+          files: calles-amba.sqlite
+          make_latest: "false"
