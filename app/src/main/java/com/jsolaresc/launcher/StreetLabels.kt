@@ -65,35 +65,56 @@ class StreetLabels(private val ctx: Context, night: Boolean) : Overlay() {
         var drawn = 0
 
         // Avenidas primero.
+        val placedNames = ArrayList<Triple<String, Float, Float>>()
         for (way in ways) {
-            val name = way.name ?: continue
+            val name = short(way.name ?: continue)
             if (drawn >= 28) break
             val labelW = text.measureText(name)
-            // Tramo más largo visible, para que el nombre entre.
+            // Tramo recto más largo visible (varios segmentos casi alineados cuentan como uno).
             var bestLen = 0.0
             var bx = 0f
             var by = 0f
             var bAngle = 0f
             val p = way.pts
-            var i = 0
-            while (i + 3 < p.size) {
-                g1.setCoords(p[i], p[i + 1])
-                g2.setCoords(p[i + 2], p[i + 3])
+            val n = p.size / 2
+            var start = 0
+            while (start < n - 1) {
+                g1.setCoords(p[start * 2], p[start * 2 + 1])
                 pj.toPixels(g1, p1)
+                val sx = p1.x.toFloat()
+                val sy = p1.y.toFloat()
+                var end = start + 1
+                g2.setCoords(p[end * 2], p[end * 2 + 1])
                 pj.toPixels(g2, p2)
-                i += 2
-                val mx = (p1.x + p2.x) / 2f
-                val my = (p1.y + p2.y) / 2f
+                val dir = atan2((p2.y - sy).toDouble(), (p2.x - sx).toDouble())
+                var ex = p2.x.toFloat()
+                var ey = p2.y.toFloat()
+                while (end + 1 < n) {
+                    g2.setCoords(p[(end + 1) * 2], p[(end + 1) * 2 + 1])
+                    pj.toPixels(g2, p2)
+                    val next = atan2((p2.y - ey).toDouble(), (p2.x - ex).toDouble())
+                    var diff = abs(Math.toDegrees(next - dir))
+                    if (diff > 180) diff = 360 - diff
+                    if (diff > 12) break
+                    end++
+                    ex = p2.x.toFloat()
+                    ey = p2.y.toFloat()
+                }
+                start = end
+                val mx = (sx + ex) / 2
+                val my = (sy + ey) / 2
                 if (mx < 0 || my < 0 || mx > w || my > h) continue
-                val len = hypot((p2.x - p1.x).toDouble(), (p2.y - p1.y).toDouble())
+                val len = hypot((ex - sx).toDouble(), (ey - sy).toDouble())
                 if (len > bestLen) {
                     bestLen = len
                     bx = mx
                     by = my
-                    bAngle = Math.toDegrees(atan2((p2.y - p1.y).toDouble(), (p2.x - p1.x).toDouble())).toFloat()
+                    bAngle = Math.toDegrees(atan2((ey - sy).toDouble(), (ex - sx).toDouble())).toFloat()
                 }
             }
             if (bestLen < labelW + 12 * d) continue
+            // El mismo nombre no se repite cerca (las calles vienen cortadas por cuadra).
+            if (placedNames.any { it.first == name && hypot((it.second - bx).toDouble(), (it.third - by).toDouble()) < 220 * d }) continue
 
             // Derecho en pantalla: el ángulo final (contando el giro del mapa) queda entre -90° y 90°.
             var screen = bAngle + orientation
@@ -108,6 +129,7 @@ class StreetLabels(private val ctx: Context, night: Boolean) : Overlay() {
             val rect = RectF(bx - hw, by - hh, bx + hw, by + hh)
             if (placed.any { RectF.intersects(it, rect) }) continue
             placed.add(rect)
+            placedNames.add(Triple(name, bx, by))
 
             canvas.save()
             canvas.rotate(angle, bx, by)
@@ -118,6 +140,16 @@ class StreetLabels(private val ctx: Context, night: Boolean) : Overlay() {
             drawn++
         }
     }
+
+    /** Nombres más cortos para que entren: "Avenida" → "Av.", etc. */
+    private fun short(name: String): String = name
+        .replace(Regex("^Avenida "), "Av. ")
+        .replace(Regex("^Autopista "), "Au. ")
+        .replace(Regex("^Pasaje "), "Pje. ")
+        .replace(Regex("^Diagonal "), "Diag. ")
+        .replace(" Presidente ", " Pres. ")
+        .replace(" General ", " Gral. ")
+        .replace(" Doctor ", " Dr. ")
 
     /** Pide a la base las calles de la zona visible (con margen) cuando el mapa se mueve fuera de lo cargado. */
     private fun ensureLoaded(s: Double, w: Double, n: Double, e: Double) {
