@@ -137,6 +137,9 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         map.setTileSource(tiles)
         if (Theme.isNight(activity)) {
             map.overlayManager.tilesOverlay.setColorFilter(contrast(1.8f, -8f, 0.6f))
+            // Mientras carga, fondo oscuro (el gris de osmdroid, con más contraste, quedaba blanco).
+            map.overlayManager.tilesOverlay.loadingBackgroundColor = Color.rgb(12, 12, 12)
+            map.overlayManager.tilesOverlay.loadingLineColor = Color.rgb(12, 12, 12)
             val labels = TilesOverlay(
                 MapTileProviderBasic(activity.applicationContext, DARK_LABELS, TileCache(activity.applicationContext)),
                 activity.applicationContext

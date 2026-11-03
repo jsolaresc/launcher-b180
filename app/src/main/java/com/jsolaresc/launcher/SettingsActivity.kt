@@ -306,6 +306,7 @@ class SettingsActivity : Activity() {
 
         findViewById<View>(R.id.offline_manage).setOnClickListener { showManage() }
         findViewById<View>(R.id.offline_import).setOnClickListener { importFromUsb() }
+        watchImport()
     }
 
     private fun ambaArea() = OfflineAreas.Area(AMBA_ID, getString(R.string.area_amba), AMBA, 0)
@@ -460,7 +461,7 @@ class SettingsActivity : Activity() {
     private var importing = false
 
     private fun importFromUsb() {
-        if (importing || activeButton != null) return
+        if (importing || MapImport.running || activeButton != null) return
         findOnUsb()?.let { importFile(it, temporary = false); return }
         if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), reqStorage)
@@ -562,26 +563,34 @@ class SettingsActivity : Activity() {
     }
 
     private fun importFile(file: File, temporary: Boolean) {
+        MapImport.start(this, file, temporary, ambaArea())
+        watchImport()
+    }
+
+    /** Muestra el avance real de la importación (sigue aunque se salga de Ajustes). */
+    private fun watchImport() {
+        if (!MapImport.running) {
+            MapImport.listener = null
+            return
+        }
         importing = true
-        offlineStatus.setText(R.string.import_merging)
-        worker.execute {
-            val count = try {
-                store.importArchive(file.path)
-            } catch (e: Exception) {
-                -1
-            }
-            if (temporary) file.delete()
-            main.post {
-                importing = false
-                if (count > 0) {
-                    OfflineAreas.save(this, OfflineAreas.Area(AMBA_ID, getString(R.string.area_amba), AMBA, System.currentTimeMillis()))
-                    showSaved()
-                    Toast.makeText(this, getString(R.string.import_done, count), Toast.LENGTH_LONG).show()
-                } else {
-                    offlineStatus.setText(R.string.import_failed)
+        offlineProgress.visibility = View.VISIBLE
+        offlineProgress.max = 100
+        fun render(p: Int) {
+            when (p) {
+                -1, -2 -> {
+                    importing = false
+                    offlineProgress.visibility = View.GONE
+                    if (p == -1) showSaved() else offlineStatus.setText(R.string.import_failed)
+                }
+                else -> {
+                    offlineProgress.progress = p
+                    offlineStatus.text = getString(R.string.import_progress, p)
                 }
             }
         }
+        render(MapImport.percent)
+        MapImport.listener = { render(it) }
     }
 
     // ---------- Administrar mapas guardados ----------
@@ -753,6 +762,7 @@ class SettingsActivity : Activity() {
         writer?.onDetach()
         soundPool?.release()
         manageDialog?.dismiss()
+        MapImport.listener = null
         worker.shutdown()
         super.onDestroy()
     }

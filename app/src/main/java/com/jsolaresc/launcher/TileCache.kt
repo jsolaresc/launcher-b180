@@ -74,20 +74,47 @@ class TileCache(private val ctx: Context) : SqlTileWriter() {
     }
 
     /** Suma las teselas de un archivo con el mismo formato (mapa-amba.sqlite) a lo guardado. */
-    fun importArchive(path: String): Int {
+    /**
+     * Se copia de a tandas chicas: entre tanda y tanda el mapa puede seguir leyendo
+     * (una sola copia gigante lo dejaba en blanco hasta terminar). Avisa el avance.
+     */
+    fun importArchive(path: String, onProgress: (done: Int, total: Int) -> Unit): Int {
         val db = getDb() ?: return 0
         db.execSQL("ATTACH DATABASE ? AS imp", arrayOf(path))
         try {
+            var total = 0
+            var minId = 0L
+            var maxId = -1L
+            db.rawQuery("SELECT count(*), min(rowid), max(rowid) FROM imp.tiles", null).use { c ->
+                if (c.moveToFirst()) {
+                    total = c.getInt(0)
+                    minId = c.getLong(1)
+                    maxId = c.getLong(2)
+                }
+            }
             // Vencen en un año: hasta entonces, con señal no se vuelven a bajar.
             val expires = System.currentTimeMillis() + 365L * 24 * 3600 * 1000
-            db.execSQL(
-                "INSERT OR REPLACE INTO ${DatabaseFileArchive.TABLE} " +
-                    "(${DatabaseFileArchive.COLUMN_KEY}, ${DatabaseFileArchive.COLUMN_PROVIDER}, ${DatabaseFileArchive.COLUMN_TILE}, $COLUMN_EXPIRES) " +
-                    "SELECT key, provider, tile, $expires FROM imp.tiles"
-            )
-            db.rawQuery("SELECT count(*) FROM imp.tiles", null).use { c ->
-                return if (c.moveToFirst()) c.getInt(0) else 0
+            val step = 1000L
+            var from = minId
+            var done = 0
+            while (from <= maxId) {
+                val to = from + step
+                db.beginTransaction()
+                try {
+                    db.execSQL(
+                        "INSERT OR REPLACE INTO ${DatabaseFileArchive.TABLE} " +
+                            "(${DatabaseFileArchive.COLUMN_KEY}, ${DatabaseFileArchive.COLUMN_PROVIDER}, ${DatabaseFileArchive.COLUMN_TILE}, $COLUMN_EXPIRES) " +
+                            "SELECT key, provider, tile, $expires FROM imp.tiles WHERE rowid >= $from AND rowid < $to"
+                    )
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+                done = minOf(total, done + step.toInt())
+                onProgress(done, total)
+                from = to
             }
+            return total
         } finally {
             db.execSQL("DETACH DATABASE imp")
         }
