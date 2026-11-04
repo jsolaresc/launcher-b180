@@ -12,7 +12,7 @@
     <string name="recenter">Volver a mi ubicación</string>
     <string name="open_maps">Abrir Google Maps</string>
     <string name="gps_searching">Buscando GPS…</string>
-    <string name="gps_searching_sats">Buscando GPS… %1$d de %2$d satélites</string>
+    <string name="gps_searching_sats">Buscando GPS… %1$d de %2$d satélites · señal %3$d dB</string>
     <string name="gps_approx">Ubicación aproximada · buscando GPS…</string>
     <string name="gps_off">GPS desactivado</string>
     <string name="gps_no_permission">Tocá para permitir la ubicación</string>
@@ -156,6 +156,8 @@
     <string name="area_around">Alrededor · %1$d km</string>
     <string name="stereo_settings">Ajustes del estéreo</string>
     <string name="nav_card">Navegación</string>
+    <string name="gps_reset">Reiniciar GPS</string>
+    <string name="gps_reset_done">GPS reiniciado: dejá el auto a cielo abierto unos minutos hasta que enganche</string>
     <string name="nav_card_hint">Los destinos rápidos navegan con OsmAnd sin conexión: arranca solo, volvés al inicio y ahí ves cada giro. La voz la da OsmAnd.</string>
     <string name="gmaps_card">Google Maps</string>
     <string name="gmaps_card_hint">Para que Maps no tape el launcher al navegar: apagá sus avisos emergentes (Navegación → sin "mostrar en pantalla") y la ventana flotante.</string>

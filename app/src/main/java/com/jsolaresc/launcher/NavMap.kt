@@ -281,10 +281,17 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         override fun onSatelliteStatusChanged(status: android.location.GnssStatus) {
             if (System.currentTimeMillis() - lastGpsAt < 5000) return
             var used = 0
-            for (i in 0 until status.satelliteCount) if (status.usedInFix(i)) used++
+            val cn0 = ArrayList<Float>()
+            for (i in 0 until status.satelliteCount) {
+                if (status.usedInFix(i)) used++
+                cn0.add(status.getCn0DbHz(i))
+            }
+            // Señal de los 4 mejores satélites: menos de ~25 dB suele ser antena tapada o mal ubicada.
+            val best = cn0.sortedDescending().take(4)
+            val signal = if (best.isEmpty()) 0 else best.average().toInt()
             val text = if (lastFix != null && lastFix?.provider == LocationManager.NETWORK_PROVIDER)
                 activity.getString(R.string.gps_approx)
-            else activity.getString(R.string.gps_searching_sats, used, status.satelliteCount)
+            else activity.getString(R.string.gps_searching_sats, used, status.satelliteCount, signal)
             activity.runOnUiThread { showStatus(text) }
         }
     }

@@ -62,6 +62,17 @@ class SettingsActivity : Activity() {
         }
         findViewById<TextView>(R.id.settings_version).text = getString(R.string.version, version)
         findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
+        // Arranque en frío del GPS: borra los datos viejos (por ejemplo, de cuando la fecha estaba en 2007).
+        findViewById<View>(R.id.gps_reset).setOnClickListener {
+            val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            for (cmd in listOf("delete_aiding_data", "force_time_injection", "force_xtra_injection")) {
+                try {
+                    lm.sendExtraCommand(LocationManager.GPS_PROVIDER, cmd, null)
+                } catch (e: Exception) {
+                }
+            }
+            Toast.makeText(this, R.string.gps_reset_done, Toast.LENGTH_LONG).show()
+        }
         findViewById<View>(R.id.gmaps_notifications).setOnClickListener {
             openFirst(
                 Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
