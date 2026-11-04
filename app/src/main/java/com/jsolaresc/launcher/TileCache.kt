@@ -93,7 +93,7 @@ class TileCache(private val ctx: Context) : SqlTileWriter() {
                 }
             }
             // Vencen en un año: hasta entonces, con señal no se vuelven a bajar.
-            val expires = System.currentTimeMillis() + 365L * 24 * 3600 * 1000
+            val expires = RealTime.now() + 365L * 24 * 3600 * 1000
             val step = 1000L
             var from = minId
             var done = 0

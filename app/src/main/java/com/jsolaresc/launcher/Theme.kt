@@ -74,6 +74,7 @@ object Theme {
         val lat = loc?.latitude ?: -34.6
         val lon = loc?.longitude ?: -58.4
         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        cal.timeInMillis = RealTime.now()
         val day = cal.get(Calendar.DAY_OF_YEAR)
         val hours = cal.get(Calendar.HOUR_OF_DAY) + cal.get(Calendar.MINUTE) / 60.0
         val gamma = 2 * Math.PI / 365 * (day - 1 + (hours - 12) / 24)

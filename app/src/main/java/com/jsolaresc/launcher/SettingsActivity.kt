@@ -51,6 +51,7 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NavMap.configure(this)
+        RealTime.installTlsFix()
         setContentView(R.layout.activity_settings)
         audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
