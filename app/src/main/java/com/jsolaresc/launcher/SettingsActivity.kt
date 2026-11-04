@@ -504,21 +504,27 @@ class SettingsActivity : Activity() {
 
     /** calles-amba: se copia tal cual (unos 20 MB) y el inicio pasa a usarlo. */
     private fun importCalles(file: File, temporary: Boolean) {
-        worker.execute {
-            val ok = try {
-                val tmp = File(filesDir, Roads.FILE + ".tmp")
-                file.copyTo(tmp, overwrite = true)
+        val app = applicationContext
+        Thread {
+            var error: String? = null
+            try {
+                val tmp = File(app.filesDir, Roads.FILE + ".tmp")
+                file.inputStream().use { input -> tmp.outputStream().use { input.copyTo(it, 1 shl 16) } }
                 Roads.reset()
-                tmp.renameTo(Roads.file(this))
+                val target = Roads.file(app)
+                target.delete()
+                if (!tmp.renameTo(target)) error = "no se pudo guardar"
             } catch (e: Exception) {
-                false
+                error = e.message ?: e.javaClass.simpleName
             }
             if (temporary) file.delete()
             Roads.reset()
             main.post {
-                Toast.makeText(this, if (ok) R.string.import_calles_done else R.string.import_failed, Toast.LENGTH_LONG).show()
+                val text = if (error == null) app.getString(R.string.import_calles_done)
+                else app.getString(R.string.import_failed) + " (calles): " + error
+                Toast.makeText(app, text, Toast.LENGTH_LONG).show()
             }
-        }
+        }.start()
     }
 
     /** Archivo elegido con el selector: se mira qué es por su contenido. */
@@ -635,11 +641,12 @@ class SettingsActivity : Activity() {
                 -1, -2 -> {
                     importing = false
                     offlineProgress.visibility = View.GONE
-                    if (p == -1) showSaved() else offlineStatus.setText(R.string.import_failed)
+                    if (p == -1) showSaved()
+                    else offlineStatus.text = getString(R.string.import_failed) + (MapImport.lastError?.let { ": $it" } ?: "")
                 }
                 else -> {
                     offlineProgress.progress = p
-                    offlineStatus.text = getString(R.string.import_progress, p)
+                    offlineStatus.text = getString(if (MapImport.copying) R.string.import_copy_progress else R.string.import_progress, p)
                 }
             }
         }

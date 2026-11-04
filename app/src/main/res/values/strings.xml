@@ -133,6 +133,7 @@
     <string name="import_not_found">Copiá mapa-amba.sqlite y calles-amba.sqlite a la raíz del pendrive y volvé a tocar \"Desde USB\"</string>
     <string name="import_copying">Copiando del pendrive… %1$d MB</string>
     <string name="import_merging">Guardando el mapa en el estéreo…</string>
+    <string name="import_copy_progress">Copiando el mapa del pendrive… %1$d %% · podés salir de Ajustes, sigue solo</string>
     <string name="import_progress">Guardando el mapa en el estéreo… %1$d %% · podés salir de Ajustes, sigue solo</string>
     <string name="import_done">Listo: el mapa del AMBA quedó guardado (%1$d partes)</string>
     <string name="import_failed">No se pudo importar el archivo</string>
