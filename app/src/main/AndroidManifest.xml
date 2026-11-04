@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Solo si se da por depuración (adb shell pm grant …): permite pedir la hora a internet
+         cuando el fabricante deja el reloj en 2007. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <!-- Desinstalar apps arrastrándolas al tacho (Android pide confirmación). -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Nombre del celular conectado por Bluetooth (para la tarjeta de música). -->
