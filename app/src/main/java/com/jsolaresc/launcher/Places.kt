@@ -4,7 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Destinos rápidos guardados en el estéreo (hasta 4, como en el diseño 2x2). */
+/** Destinos rápidos guardados en el estéreo: los 3 primeros a la vista, el resto en "Más". */
 data class Place(val name: String, val lat: Double, val lon: Double) {
     val iconRes: Int
         get() {
@@ -18,7 +18,8 @@ data class Place(val name: String, val lat: Double, val lon: Double) {
 }
 
 object Places {
-    const val MAX = 4
+    const val MAX = 40
+    const val VISIBLE = 3
     private const val PREFS = "places"
     private const val KEY = "list"
 
@@ -34,6 +35,9 @@ object Places {
             mutableListOf()
         }
     }
+
+    /** Los que van en "Más", en orden alfabético. */
+    fun more(list: List<Place>) = list.drop(VISIBLE).sortedBy { it.name.lowercase() }
 
     fun save(ctx: Context, list: List<Place>) {
         val arr = JSONArray()

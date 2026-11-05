@@ -63,6 +63,8 @@ class SettingsActivity : Activity() {
         }
         findViewById<TextView>(R.id.settings_version).text = getString(R.string.version, version)
         findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
+        setupOsmandHome()
+
         // Arranque en frío del GPS: borra los datos viejos (por ejemplo, de cuando la fecha estaba en 2007).
         findViewById<View>(R.id.gps_reset).setOnClickListener {
             val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -94,6 +96,32 @@ class SettingsActivity : Activity() {
     }
 
     private val GMAPS = "com.google.android.apps.maps"
+
+    /** Inicio con el mapa de OsmAnd: interruptor y los dos permisos que necesita. */
+    private fun setupOsmandHome() {
+        val home = findViewById<Switch>(R.id.osmand_home)
+        home.isChecked = Prefs.osmandHome(this)
+        home.setOnCheckedChangeListener { _, on ->
+            Prefs.setOsmandHome(this, on)
+            if (on && !android.provider.Settings.canDrawOverlays(this)) askOverlay()
+        }
+        findViewById<View>(R.id.osmand_home_row).setOnClickListener { home.toggle() }
+        findViewById<View>(R.id.perm_overlay).setOnClickListener { askOverlay() }
+        findViewById<View>(R.id.perm_access).setOnClickListener {
+            openFirst(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        val voice = findViewById<Switch>(R.id.pause_voice)
+        voice.isChecked = Prefs.pauseForVoice(this)
+        voice.setOnCheckedChangeListener { _, on -> Prefs.setPauseForVoice(this, on) }
+        findViewById<View>(R.id.pause_voice_row).setOnClickListener { voice.toggle() }
+    }
+
+    private fun askOverlay() {
+        openFirst(
+            Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")),
+            Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+        )
+    }
 
     /** Abre la primera pantalla de ajustes que exista; si ninguna, la ficha de la app. */
     private fun openFirst(vararg intents: Intent) {
@@ -497,10 +525,49 @@ class SettingsActivity : Activity() {
     private fun importFound(): Boolean {
         val calles = findOnUsb(callesName)
         val mapa = findOnUsb(importName)
-        if (calles == null && mapa == null) return false
+        val destinos = findOnUsb("destinos.txt")
+        if (calles == null && mapa == null && destinos == null) return false
+        if (destinos != null) importDestinos(destinos)
         if (calles != null) importCalles(calles, temporary = false)
         if (mapa != null) importFile(mapa, temporary = false)
         return true
+    }
+
+    /**
+     * destinos.txt: un destino por renglón, "Nombre; dirección". Los 3 primeros quedan a la vista.
+     * Las direcciones se ubican con los mapas de OsmAnd (sin internet) y quedan también como favoritos.
+     */
+    private fun importDestinos(file: File) {
+        val lines = try {
+            file.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.contains(";") && !it.startsWith("#") }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (lines.isEmpty() || NavLaunch.osmand(this) == null) {
+            Toast.makeText(this, R.string.destinos_need_osmand, Toast.LENGTH_LONG).show()
+            return
+        }
+        val old = Places.load(this)
+        val found = arrayOfNulls<Place>(lines.size)
+        val missing = ArrayList<String>()
+        var pending = lines.size
+        lines.forEachIndexed { i, line ->
+            val name = line.substringBefore(";").trim()
+            val address = line.substringAfter(";").trim()
+            OsmAnd.search(this, address, -34.6037, -58.3816) { results ->
+                val r = results.firstOrNull()
+                if (r != null) found[i] = Place(name, r.latitude, r.longitude) else missing.add(name)
+                pending--
+                if (pending == 0) {
+                    val list = found.filterNotNull()
+                    Places.save(this, list)
+                    OsmAnd.syncFavorites(this, old, list)
+                    val text = if (missing.isEmpty()) getString(R.string.destinos_done, list.size)
+                    else getString(R.string.destinos_partial, list.size, missing.joinToString(", "))
+                    Toast.makeText(applicationContext, text, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     /** calles-amba: se copia tal cual (unos 20 MB) y el inicio pasa a usarlo. */

@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Panel del launcher encima del mapa de OsmAnd. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Solo si se da por depuración (adb shell pm grant …): permite pedir la hora a internet
          cuando el fabricante deja el reloj en 2007. -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
@@ -66,6 +68,20 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+        </service>
+
+        <!-- Opcional: saber qué app está adelante para mostrar el panel solo sobre OsmAnd. -->
+        <service
+            android:name=".ForegroundWatch"
+            android:exported="true"
+            android:label="@string/foreground_watch_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/foreground_watch" />
         </service>
     </application>
 </manifest>

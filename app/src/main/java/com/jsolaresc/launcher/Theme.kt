@@ -41,6 +41,14 @@ object Prefs {
     fun saveVisited(ctx: Context) = p(ctx).getBoolean("save_visited", true)
     fun setSaveVisited(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("save_visited", v).apply()
 
+    /** Inicio con el mapa de OsmAnd (si está instalado y con permiso de mostrarse encima). */
+    fun osmandHome(ctx: Context) = p(ctx).getBoolean("osmand_home", true)
+    fun setOsmandHome(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("osmand_home", v).apply()
+
+    /** Pausar la música del celular mientras habla la voz de OsmAnd. */
+    fun pauseForVoice(ctx: Context) = p(ctx).getBoolean("pause_for_voice", true)
+    fun setPauseForVoice(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("pause_for_voice", v).apply()
+
     /** Volumen del aviso de radares, 0 a 100. */
     fun alertVolume(ctx: Context) = p(ctx).getInt("alert_volume", 80)
     fun setAlertVolume(ctx: Context, v: Int) = p(ctx).edit().putInt("alert_volume", v).apply()

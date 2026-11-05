@@ -49,6 +49,86 @@ class MainActivity : Activity() {
     private val timeFormat = SimpleDateFormat("HH:mm", locale)
     private val dateFormat = SimpleDateFormat("EEEE d MMM", locale)
     private val dialogTheme get() = Theme.dialogTheme(this)
+
+    /** Con el inicio sobre OsmAnd, los diálogos se muestran encima (si no, quedarían detrás). */
+    private fun AlertDialog.Builder.showHere(): AlertDialog {
+        val dialog = create()
+        if (overlay != null) dialog.window?.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        dialog.show()
+        return dialog
+    }
+
+    // ---------- Inicio con el mapa de OsmAnd ----------
+
+    private var overlay: HomeOverlay? = null
+
+    private fun osmandHomeWanted() = Prefs.osmandHome(this) && NavLaunch.osmand(this) != null &&
+        android.provider.Settings.canDrawOverlays(this)
+
+    /** OsmAnd adelante, con el panel del launcher encima. */
+    private fun bringOsmAnd() {
+        val o = overlay ?: return
+        val pkg = NavLaunch.osmand(this) ?: return
+        o.setFull(false)
+        o.show()
+        val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return
+        try {
+            super.startActivity(
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            )
+        } catch (e: Exception) {
+        }
+        // OsmAnd aplica los márgenes cuando su mapa ya está abierto.
+        handler.postDelayed({ overlay?.applyToOsmAnd() }, 1500)
+        handler.postDelayed({ overlay?.applyToOsmAnd() }, 5000)
+    }
+
+    /** Sin el permiso de Accesibilidad no se sabe qué app está adelante: se esconde al abrir otra desde acá. */
+    override fun startActivity(intent: Intent?) {
+        val o = overlay
+        if (o != null && intent != null) {
+            val target = intent.component?.packageName ?: intent.`package`
+            val toOsmAnd = target != null && NavLaunch.isOsmand(target)
+            val toHome = intent.component?.className == MainActivity::class.java.name
+            if (!toOsmAnd && !toHome) o.hide()
+        }
+        super.startActivity(intent)
+    }
+
+    private fun onForeground(pkg: String, cls: String?) {
+        val o = overlay ?: return
+        when {
+            NavLaunch.isOsmand(pkg) -> o.show()
+            pkg == packageName && cls == MainActivity::class.java.name -> o.show()
+            else -> o.hide()
+        }
+    }
+
+    // ---------- Voz de OsmAnd sobre la música del celular ----------
+
+    private var pausedForVoice = false
+    private val resumeAfterVoice = Runnable {
+        if (pausedForVoice) {
+            pausedForVoice = false
+            music.play()
+        }
+    }
+
+    /**
+     * El Bluetooth de este estéreo no baja ni pausa la música cuando OsmAnd habla, y la voz
+     * no se escucha. El launcher pausa la música del celular mientras dura la indicación.
+     */
+    private fun onNavigationVoice(phrases: List<String>) {
+        if (!Prefs.pauseForVoice(this) || !source.isBluetooth) return
+        if (!pausedForVoice) {
+            if (!music.isPlaying) return
+            if (music.pause()) pausedForVoice = true else return
+        }
+        val chars = phrases.sumOf { it.length }
+        val ms = (1200L + chars * 75L).coerceAtMost(9000L)
+        handler.removeCallbacks(resumeAfterVoice)
+        handler.postDelayed(resumeAfterVoice, ms)
+    }
     private var startedNight = false
     private var resumedFully = false
 
@@ -185,9 +265,14 @@ class MainActivity : Activity() {
         setupMap()
         setupMusic()
         setupDock()
+        if (NavLaunch.osmand(this) != null) {
+            OsmAnd.connect(this)
+            OsmAnd.onVoice = { onNavigationVoice(it) }
+        }
 
         placesView = findViewById(R.id.places)
         places = Places.load(this)
+        savedPlaces = places.toList()
 
         clock = findViewById(R.id.clock)
         date = findViewById(R.id.date)
@@ -197,6 +282,13 @@ class MainActivity : Activity() {
         weather = Weather { temp, icon ->
             weatherTemp.text = "$temp°"
             weatherIcon.setImageResource(icon)
+        }
+
+        if (osmandHomeWanted()) {
+            overlay = HomeOverlay(this).also { it.attach() }
+            Foreground.listener = { pkg, cls -> onForeground(pkg, cls) }
+            // "Mapa" en el dock: OsmAnd completo.
+            findViewById<View>(R.id.dock_maps).setOnClickListener { overlay?.setFull(true) }
         }
     }
 
@@ -336,7 +428,7 @@ class MainActivity : Activity() {
         val picking = pickingIndex != null
         // Sin barra de búsqueda: el destino se elige en Organic Maps; el mapa gana espacio.
         mapSearch.visibility = View.GONE
-        if (info == null || picking) {
+        if (info == null || picking || overlay != null) {
             navBanner.visibility = View.GONE
             return
         }
@@ -451,11 +543,12 @@ class MainActivity : Activity() {
         }
     }
 
+    /** 3 destinos a la vista y el 4.º lugar es "Más" (o "Agregar" si no hay más). */
     private fun renderPlaces() {
         placesView.removeAllViews()
         placeDetails.clear()
         val gap = (6 * resources.displayMetrics.density).toInt()
-        var addShown = false
+        val extra = Places.more(places)
         for (row in 0 until 2) {
             val rowView = LinearLayout(this)
             rowView.orientation = LinearLayout.HORIZONTAL
@@ -472,7 +565,7 @@ class MainActivity : Activity() {
                 val icon = tile.findViewById<ImageView>(R.id.place_icon)
                 val detail = tile.findViewById<TextView>(R.id.place_detail)
 
-                val place = places.getOrNull(index)
+                val place = if (index < Places.VISIBLE) places.getOrNull(index) else null
                 when {
                     place != null -> {
                         name.text = place.name
@@ -485,8 +578,14 @@ class MainActivity : Activity() {
                             true
                         }
                     }
-                    !addShown -> {
-                        addShown = true
+                    index == 3 && extra.isNotEmpty() -> {
+                        // "Más": abre la lista con el resto, del ancho de la tarjeta.
+                        name.text = getString(R.string.places_more)
+                        icon.setImageResource(R.drawable.ic_chevron_down)
+                        detail.text = getString(R.string.places_more_count, extra.size)
+                        tile.setOnClickListener { showMorePlaces() }
+                    }
+                    index == places.size || (index == 3 && extra.isEmpty()) -> {
                         tile.setBackgroundResource(R.drawable.bg_tile_add)
                         (tile as LinearLayout).gravity = Gravity.CENTER
                         name.text = getString(R.string.add_place)
@@ -494,7 +593,7 @@ class MainActivity : Activity() {
                         name.textAlignment = View.TEXT_ALIGNMENT_CENTER
                         icon.setImageResource(R.drawable.ic_plus)
                         detail.visibility = View.GONE
-                        tile.setOnClickListener { startPick(-1) }
+                        tile.setOnClickListener { addPlace() }
                     }
                     else -> tile.visibility = View.INVISIBLE
                 }
@@ -502,6 +601,104 @@ class MainActivity : Activity() {
             }
         }
         renderPlaceDistances()
+    }
+
+    private fun distanceText(place: Place): String {
+        val here = navMap.lastFix ?: return "—"
+        val result = FloatArray(1)
+        Location.distanceBetween(here.latitude, here.longitude, place.lat, place.lon, result)
+        val meters = result[0]
+        return if (meters < 1000) "${(meters / 10).roundToInt() * 10} m" else String.format(locale, "%.1f km", meters / 1000)
+    }
+
+    /** Lista desplegable con los otros destinos (orden alfabético) y "Agregar". */
+    private fun showMorePlaces() {
+        val density = resources.displayMetrics.density
+        val menu = LinearLayout(this)
+        menu.orientation = LinearLayout.VERTICAL
+        menu.setBackgroundResource(R.drawable.bg_menu)
+        val pad = (6 * density).toInt()
+        menu.setPadding(pad, pad, pad, pad)
+        val scroll = android.widget.ScrollView(this)
+        scroll.addView(menu)
+        val popup = PopupWindow(scroll, placesView.width, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+
+        for (place in Places.more(places)) {
+            val row = LinearLayout(this)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER_VERTICAL
+            row.setBackgroundResource(R.drawable.bg_menu_item)
+            row.setPadding((10 * density).toInt(), 0, (10 * density).toInt(), 0)
+            val name = TextView(this)
+            name.text = place.name
+            name.setTextColor(getColor(R.color.text))
+            name.textSize = 12f
+            name.setTypeface(name.typeface, android.graphics.Typeface.BOLD)
+            row.addView(name, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            val dist = TextView(this)
+            dist.text = distanceText(place)
+            dist.setTextColor(getColor(R.color.muted))
+            dist.textSize = 10f
+            row.addView(dist)
+            row.setOnClickListener {
+                popup.dismiss()
+                navigateTo(place)
+            }
+            row.setOnLongClickListener {
+                popup.dismiss()
+                placeOptions(places.indexOf(place))
+                true
+            }
+            menu.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (40 * density).toInt()))
+        }
+        val add = TextView(this)
+        add.text = "+  " + getString(R.string.add_place)
+        add.setTextColor(getColor(R.color.muted))
+        add.textSize = 11f
+        add.gravity = Gravity.CENTER_VERTICAL
+        add.setPadding((10 * density).toInt(), 0, 0, 0)
+        add.setBackgroundResource(R.drawable.bg_menu_item)
+        add.setOnClickListener {
+            popup.dismiss()
+            addPlace()
+        }
+        menu.addView(add, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (40 * density).toInt()))
+
+        popup.elevation = 12 * density
+        // Se abre hacia arriba desde la tarjeta, que está abajo de todo.
+        val max = (resources.displayMetrics.heightPixels * 0.7f).toInt()
+        scroll.measure(
+            View.MeasureSpec.makeMeasureSpec(placesView.width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(max, View.MeasureSpec.AT_MOST)
+        )
+        popup.height = scroll.measuredHeight
+        popup.showAsDropDown(placesView, 0, -placesView.height - scroll.measuredHeight - pad)
+    }
+
+    /**
+     * Agregar destino: con OsmAnd, por dirección (la busca en sus mapas, sin internet);
+     * si no, marcándolo en el mapa del launcher.
+     */
+    private fun addPlace() {
+        if (NavLaunch.osmand(this) == null) {
+            startPick(-1)
+            return
+        }
+        askName("") { name ->
+            askName("", R.string.place_address_title, R.string.place_address_hint) { address ->
+                val here = navMap.lastFix
+                OsmAnd.search(this, address, here?.latitude ?: -34.6037, here?.longitude ?: -58.3816) { results ->
+                    val r = results.firstOrNull()
+                    if (r == null) {
+                        Toast.makeText(this, getString(R.string.place_not_found, address), Toast.LENGTH_LONG).show()
+                    } else {
+                        places.add(Place(name, r.latitude, r.longitude))
+                        savePlaces()
+                        Toast.makeText(this, getString(R.string.place_found, name, r.localName ?: address), Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
     }
 
     private fun renderPlaceDistances() {
@@ -521,6 +718,11 @@ class MainActivity : Activity() {
     }
 
     private fun navigateTo(place: Place) {
+        // Inicio con OsmAnd: navega ahí mismo, sin cambiar de pantalla.
+        if (overlay != null && OsmAnd.navigate(this, place)) {
+            bringOsmAnd()
+            return
+        }
         // Con OsmAnd: navega directo desde tu posición (sin confirmar) y el launcher vuelve al inicio.
         val osmand = NavLaunch.osmand(this)
         if (osmand != null) {
@@ -559,14 +761,28 @@ class MainActivity : Activity() {
                         places[index] = place.copy(name = name)
                         savePlaces()
                     }
-                    1 -> startPick(index)
+                    1 -> if (NavLaunch.osmand(this) != null) {
+                        // Cambiar la dirección (se busca en los mapas de OsmAnd).
+                        askName("", R.string.place_address_title, R.string.place_address_hint) { address ->
+                            val here = navMap.lastFix
+                            OsmAnd.search(this, address, here?.latitude ?: -34.6037, here?.longitude ?: -58.3816) { results ->
+                                val r = results.firstOrNull()
+                                if (r == null) {
+                                    Toast.makeText(this, getString(R.string.place_not_found, address), Toast.LENGTH_LONG).show()
+                                } else {
+                                    places[index] = place.copy(lat = r.latitude, lon = r.longitude)
+                                    savePlaces()
+                                }
+                            }
+                        }
+                    } else startPick(index)
                     2 -> {
                         places.removeAt(index)
                         savePlaces()
                     }
                 }
             }
-            .show()
+            .showHere()
     }
 
     private fun startPick(index: Int) {
@@ -627,11 +843,16 @@ class MainActivity : Activity() {
                 if (name.isNotEmpty()) onName(name)
             }
             .setNegativeButton(R.string.cancel, null)
-            .show()
+            .showHere()
     }
+
+    private var savedPlaces: List<Place> = emptyList()
 
     private fun savePlaces() {
         Places.save(this, places)
+        // También quedan como favoritos de OsmAnd (grupo "Launcher"), marcados en su mapa.
+        OsmAnd.syncFavorites(this, savedPlaces, places.toList())
+        savedPlaces = places.toList()
         renderPlaces()
     }
 
@@ -857,7 +1078,7 @@ class MainActivity : Activity() {
                             renderMusic()
                         }
                         .setNegativeButton(R.string.cancel, null)
-                        .show()
+                        .showHere()
                     true
                 }
             }
@@ -1163,7 +1384,17 @@ class MainActivity : Activity() {
             recreate()
             return
         }
+        if (overlay != null && resumedFully) {
+            places = Places.load(this)
+            savedPlaces = places.toList()
+            renderBottomCard()
+            bringOsmAnd()
+            return
+        }
         resumedFully = true
+        // Los destinos pudieron cambiar desde Ajustes (destinos.txt).
+        places = Places.load(this)
+        savedPlaces = places.toList()
         renderBottomCard()
         handler.removeCallbacks(themeTick)
         handler.postDelayed(themeTick, 3000)
@@ -1191,9 +1422,15 @@ class MainActivity : Activity() {
         Nav.listener = { runOnUiThread { renderNav() } }
         renderNav()
         renderPlaceDistances()
+        if (overlay != null) bringOsmAnd()
     }
 
     override fun onPause() {
+        // Con OsmAnd de fondo, el launcher sigue andando (música, reloj, GPS) aunque no esté adelante.
+        if (overlay != null) {
+            super.onPause()
+            return
+        }
         if (!resumedFully) {
             super.onPause()
             return
@@ -1212,6 +1449,22 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        overlay?.let {
+            it.detach()
+            Foreground.listener = null
+            if (resumedFully) {
+                handler.removeCallbacksAndMessages(null)
+                try {
+                    unregisterReceiver(volumeReceiver)
+                } catch (e: Exception) {
+                }
+                music.stop()
+                unwatchNetwork()
+                navMap.stop()
+                Nav.listener = null
+            }
+        }
+        overlay = null
         ts.disconnect()
         cameras.release()
         super.onDestroy()

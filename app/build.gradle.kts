@@ -66,4 +66,6 @@ android {
 dependencies {
     // Mapa liviano de teselas (raster): anda bien en la GPU Mali-450 y guarda caché para usar sin señal.
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+    // Hablar con OsmAnd (mapa del inicio, favoritos, navegación, voz).
+    implementation(project(":osmand-api"))
 }

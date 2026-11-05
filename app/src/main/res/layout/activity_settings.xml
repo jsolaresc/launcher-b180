@@ -214,6 +214,113 @@
                     android:textColor="@color/muted"
                     android:textSize="9sp" />
 
+
+                <LinearLayout
+                    android:id="@+id/osmand_home_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/osmand_home"
+                            android:textColor="@color/text"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/osmand_home_hint"
+                            android:textColor="@color/muted"
+                            android:textSize="8sp" />
+                    </LinearLayout>
+
+                    <Switch
+                        android:id="@+id/osmand_home"
+                        android:layout_width="wrap_content"
+                        android:layout_height="30dp"
+                        android:layout_marginStart="8dp"
+                        android:thumbTint="@color/text"
+                        android:trackTint="@color/accent" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:id="@+id/perm_overlay"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_option"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="@string/perm_overlay"
+                        android:textColor="@color/text"
+                        android:textSize="10sp" />
+                    <TextView
+                        android:id="@+id/perm_access"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_option"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="@string/perm_access"
+                        android:textColor="@color/text"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/pause_voice_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/pause_voice"
+                            android:textColor="@color/text"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/pause_voice_hint"
+                            android:textColor="@color/muted"
+                            android:textSize="8sp" />
+                    </LinearLayout>
+
+                    <Switch
+                        android:id="@+id/pause_voice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="30dp"
+                        android:layout_marginStart="8dp"
+                        android:thumbTint="@color/text"
+                        android:trackTint="@color/accent" />
+                </LinearLayout>
+
                 <TextView
                     android:id="@+id/gps_reset"
                     android:layout_width="wrap_content"

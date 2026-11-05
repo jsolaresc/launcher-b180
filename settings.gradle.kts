@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "launcher-b180"
 include(":app")
+include(":osmand-api")
