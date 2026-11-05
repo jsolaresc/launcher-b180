@@ -145,11 +145,7 @@ class MainActivity : Activity() {
         handler.removeCallbacks(restoreAfterVoice)
         handler.postDelayed(restoreAfterVoice, ms)
     }
-        val chars = phrases.sumOf { it.length }
-        val ms = (1200L + chars * 75L).coerceAtMost(9000L)
-        handler.removeCallbacks(resumeAfterVoice)
-        handler.postDelayed(resumeAfterVoice, ms)
-    }
+
     private var startedNight = false
     private var resumedFully = false
 
