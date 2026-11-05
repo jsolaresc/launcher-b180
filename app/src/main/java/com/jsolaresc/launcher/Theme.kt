@@ -45,7 +45,11 @@ object Prefs {
     fun osmandHome(ctx: Context) = p(ctx).getBoolean("osmand_home", true)
     fun setOsmandHome(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("osmand_home", v).apply()
 
-    /** Pausar la música del celular mientras habla la voz de OsmAnd. */
+    /** Volumen de la música mientras habla OsmAnd (en pasos del volumen del estéreo). */
+    fun duckVolume(ctx: Context) = p(ctx).getInt("duck_volume", 2)
+    fun setDuckVolume(ctx: Context, v: Int) = p(ctx).edit().putInt("duck_volume", v).apply()
+
+    /** Bajar la música mientras habla la voz de OsmAnd. */
     fun pauseForVoice(ctx: Context) = p(ctx).getBoolean("pause_for_voice", true)
     fun setPauseForVoice(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("pause_for_voice", v).apply()
 

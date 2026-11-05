@@ -104,26 +104,47 @@ class MainActivity : Activity() {
         }
     }
 
-    // ---------- Voz de OsmAnd sobre la música del celular ----------
+    // ---------- Voz de OsmAnd sobre la música ----------
 
-    private var pausedForVoice = false
-    private val resumeAfterVoice = Runnable {
-        if (pausedForVoice) {
-            pausedForVoice = false
-            music.play()
+    /** Volumen que tenía la música antes de bajarla para una indicación (-1: no se bajó). */
+    private var duckedFrom = -1
+    private val restoreAfterVoice = Runnable {
+        if (duckedFrom >= 0) {
+            // Solo se vuelve si nadie lo tocó mientras tanto.
+            if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) == Prefs.duckVolume(this)) {
+                setMusicVolume(duckedFrom)
+            }
+            duckedFrom = -1
         }
     }
 
+    private fun setMusicVolume(v: Int) {
+        try {
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
+        } catch (e: Exception) {
+        }
+        refreshVolume()
+    }
+
     /**
-     * El Bluetooth de este estéreo no baja ni pausa la música cuando OsmAnd habla, y la voz
-     * no se escucha. El launcher pausa la música del celular mientras dura la indicación.
+     * El Bluetooth de este estéreo no baja la música cuando OsmAnd habla y la voz no se escucha.
+     * El launcher baja la música (por ejemplo, de 8 a 2) mientras dura la indicación y la vuelve
+     * a subir. La voz de OsmAnd tiene que salir por "Notificación" para no bajar con la música.
      */
     private fun onNavigationVoice(phrases: List<String>) {
-        if (!Prefs.pauseForVoice(this) || !source.isBluetooth) return
-        if (!pausedForVoice) {
-            if (!music.isPlaying) return
-            if (music.pause()) pausedForVoice = true else return
+        if (!Prefs.pauseForVoice(this)) return
+        val duck = Prefs.duckVolume(this)
+        if (duckedFrom < 0) {
+            val current = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+            if (current <= duck) return
+            duckedFrom = current
+            setMusicVolume(duck)
         }
+        val chars = phrases.sumOf { it.length }
+        val ms = (1500L + chars * 75L).coerceAtMost(9000L)
+        handler.removeCallbacks(restoreAfterVoice)
+        handler.postDelayed(restoreAfterVoice, ms)
+    }
         val chars = phrases.sumOf { it.length }
         val ms = (1200L + chars * 75L).coerceAtMost(9000L)
         handler.removeCallbacks(resumeAfterVoice)

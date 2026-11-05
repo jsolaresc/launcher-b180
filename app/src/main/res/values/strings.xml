@@ -99,7 +99,7 @@
     <string name="volume_title">Volumen</string>
     <string name="vol_music">Música</string>
     <string name="vol_alerts">Radares</string>
-    <string name="vol_notifications">Notificaciones</string>
+    <string name="vol_notifications">Voz GPS y avisos</string>
     <string name="vol_system">Sistema</string>
     <string name="offline_map">Mapa sin conexión</string>
     <string name="offline_map_hint">Guarda el mapa en el estéreo para verlo sin señal. Conviene hacerlo con WiFi.</string>
@@ -157,12 +157,13 @@
     <string name="area_around">Alrededor · %1$d km</string>
     <string name="stereo_settings">Ajustes del estéreo</string>
     <string name="nav_card">Navegación</string>
+    <string name="vol_duck">Música en avisos</string>
     <string name="osmand_home">Mapa de OsmAnd en el inicio</string>
     <string name="osmand_home_hint">El mapa del inicio es OsmAnd; el launcher queda encima con la música, los destinos y el dock</string>
     <string name="perm_overlay">Mostrar encima</string>
     <string name="perm_access">Accesibilidad</string>
-    <string name="pause_voice">Pausar la música cuando habla OsmAnd</string>
-    <string name="pause_voice_hint">Así se escuchan las indicaciones aunque suene música del celular</string>
+    <string name="pause_voice">Bajar la música cuando habla OsmAnd</string>
+    <string name="pause_voice_hint">Baja al nivel de \"Música en avisos\" (Volumen) y después vuelve. En OsmAnd, la voz tiene que salir por \"Notificación\"</string>
     <string name="foreground_watch_desc">Avisa al launcher qué app está adelante, para mostrar su panel solo sobre OsmAnd. No lee el contenido de las pantallas.</string>
     <string name="foreground_watch_label">Launcher B180 · panel sobre OsmAnd</string>
     <string name="places_more">Más</string>

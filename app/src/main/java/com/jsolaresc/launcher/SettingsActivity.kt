@@ -201,6 +201,10 @@ class SettingsActivity : Activity() {
     private fun setupVolumes() {
         val container = findViewById<LinearLayout>(R.id.volumes)
         addStreamRow(container, R.string.vol_music, AudioManager.STREAM_MUSIC)
+        // A cuánto baja la música mientras habla OsmAnd (la voz va por "Notificaciones").
+        addRow(container, R.string.vol_duck, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC), Prefs.duckVolume(this)) { value, _ ->
+            Prefs.setDuckVolume(this, value)
+        }
 
         // Fotomultas: volumen propio del launcher, con una muestra al soltar.
         soundPool = SoundPool.Builder().setMaxStreams(1).build().also {
