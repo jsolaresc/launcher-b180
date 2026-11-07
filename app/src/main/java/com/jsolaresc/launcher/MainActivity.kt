@@ -66,6 +66,36 @@ class MainActivity : Activity() {
     private fun osmandHomeWanted() = Prefs.osmandHome(this) && NavLaunch.osmand(this) != null &&
         android.provider.Settings.canDrawOverlays(this)
 
+    private var askedOverlay = false
+
+    /**
+     * El inicio con OsmAnd viene prendido, pero sin el permiso "Mostrar encima" no puede
+     * funcionar y quedaba el mapa viejo sin avisar. Ahora se pide.
+     */
+    private fun askOverlayIfMissing() {
+        if (askedOverlay || !Prefs.osmandHome(this) || NavLaunch.osmand(this) == null) return
+        if (android.provider.Settings.canDrawOverlays(this)) return
+        askedOverlay = true
+        AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(R.string.overlay_needed_title)
+            .setMessage(R.string.overlay_needed)
+            .setPositiveButton(R.string.overlay_needed_grant) { _, _ ->
+                for (i in listOf(
+                    Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")),
+                    Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))
+                )) {
+                    try {
+                        startActivity(i)
+                        break
+                    } catch (e: Exception) {
+                    }
+                }
+            }
+            .setNegativeButton(R.string.overlay_needed_skip) { _, _ -> Prefs.setOsmandHome(this, false) }
+            .show()
+    }
+
     /** OsmAnd adelante, con el panel del launcher encima. */
     private fun bringOsmAnd() {
         val o = overlay ?: return
@@ -1449,6 +1479,12 @@ class MainActivity : Activity() {
             recreate()
             return
         }
+        // Se dio (o se quitó) el permiso "Mostrar encima", o se cambió el interruptor: cambia el modo del inicio.
+        if (osmandHomeWanted() != (overlay != null)) {
+            recreate()
+            return
+        }
+        askOverlayIfMissing()
         renderDock()
         if (overlay != null && resumedFully) {
             places = Places.load(this)

@@ -117,6 +117,14 @@ class SettingsActivity : Activity() {
         findViewById<View>(R.id.pause_voice_row).setOnClickListener { voice.toggle() }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Estado del permiso a la vista: sin él, el inicio usa el mapa del launcher.
+        val ok = android.provider.Settings.canDrawOverlays(this)
+        findViewById<TextView>(R.id.perm_overlay).text =
+            getString(if (ok) R.string.perm_overlay_ok else R.string.perm_overlay_missing)
+    }
+
     private fun askOverlay() {
         openFirst(
             Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")),

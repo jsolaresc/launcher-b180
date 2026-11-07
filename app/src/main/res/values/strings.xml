@@ -205,4 +205,10 @@
     <string name="dock_open_failed">No pude abrir %1$s.</string>
     <string name="dock_auto_detail">Abre Headunit Reloaded u Open Headunit</string>
     <string name="dock_app_detail">Abre %1$s</string>
+    <string name="perm_overlay_ok">Mostrar encima ✓</string>
+    <string name="perm_overlay_missing">Mostrar encima: falta permiso</string>
+    <string name="overlay_needed_title">Falta un permiso para el mapa de OsmAnd</string>
+    <string name="overlay_needed">Para poner el mapa de OsmAnd en el inicio, el launcher tiene que poder mostrarse encima de otras apps. Activá "Permitir mostrar sobre otras apps" para Launcher B180 y volvé.</string>
+    <string name="overlay_needed_grant">Dar permiso</string>
+    <string name="overlay_needed_skip">Usar el mapa del launcher</string>
 </resources>
