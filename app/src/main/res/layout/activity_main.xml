@@ -615,91 +615,14 @@
         android:paddingStart="8dp"
         android:paddingEnd="12dp">
 
+        <!-- Accesos: los arma MainActivity según Ajustes (DockConfig). -->
         <LinearLayout
+            android:id="@+id/dock_items"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:gravity="center"
-            android:orientation="horizontal">
-
-            <LinearLayout
-                android:id="@+id/dock_apps"
-                style="@style/DockItem">
-
-                <ImageView
-                    style="@style/DockIcon"
-                    android:src="@drawable/ic_apps" />
-
-                <TextView
-                    style="@style/DockLabel"
-                    android:text="@string/label_apps_short" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/dock_radio"
-                style="@style/DockItem">
-
-                <ImageView
-                    style="@style/DockIcon"
-                    android:src="@drawable/ic_radio" />
-
-                <TextView
-                    style="@style/DockLabel"
-                    android:text="@string/label_radio" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/dock_phone"
-                style="@style/DockItem">
-
-                <ImageView
-                    style="@style/DockIcon"
-                    android:src="@drawable/ic_phone" />
-
-                <TextView
-                    style="@style/DockLabel"
-                    android:text="@string/label_phone" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/dock_music"
-                style="@style/DockItem">
-
-                <ImageView
-                    style="@style/DockIcon"
-                    android:src="@drawable/ic_music" />
-
-                <TextView
-                    style="@style/DockLabel"
-                    android:text="@string/label_music" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/dock_maps"
-                style="@style/DockItem">
-
-                <ImageView
-                    style="@style/DockIcon"
-                    android:src="@drawable/ic_maps_dock" />
-
-                <TextView
-                    style="@style/DockLabel"
-                    android:text="@string/label_maps" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/dock_settings"
-                style="@style/DockItem">
-
-                <ImageView
-                    style="@style/DockIcon"
-                    android:src="@drawable/ic_settings" />
-
-                <TextView
-                    style="@style/DockLabel"
-                    android:text="@string/label_settings" />
-            </LinearLayout>
-        </LinearLayout>
+            android:orientation="horizontal" />
 
         <!-- Clima · hora · estado -->
         <LinearLayout

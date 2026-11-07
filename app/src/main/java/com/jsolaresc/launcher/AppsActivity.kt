@@ -25,6 +25,10 @@ class AppsActivity : Activity() {
         const val EXTRA_PICK_LABEL = "pick_label"
         /** Elegir una app para sumarla como fuente de música. */
         const val PICK_MUSIC_APP = "music_app"
+        /** Elegir una app y devolverla a quien llamó (Ajustes → barra inferior). */
+        const val PICK_RETURN = "return"
+        const val EXTRA_COMPONENT = "component"
+        const val EXTRA_APP_LABEL = "app_label"
     }
 
     private data class AppEntry(val label: String, val component: ComponentName, val icon: Drawable)
@@ -48,7 +52,14 @@ class AppsActivity : Activity() {
         val grid = findViewById<GridView>(R.id.apps_grid)
         grid.setOnItemClickListener { _, _, position, _ ->
             val app = apps[position]
-            if (pickKey == PICK_MUSIC_APP) {
+            if (pickKey == PICK_RETURN) {
+                setResult(
+                    RESULT_OK, Intent()
+                        .putExtra(EXTRA_COMPONENT, app.component.flattenToString())
+                        .putExtra(EXTRA_APP_LABEL, app.label)
+                )
+                finish()
+            } else if (pickKey == PICK_MUSIC_APP) {
                 Sources.addApp(this, app.component.packageName)
                 Sources.select(this, app.component.packageName)
                 finish()

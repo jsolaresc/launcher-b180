@@ -190,4 +190,19 @@
     <string name="version">Launcher B180 · %1$s</string>
     <string name="heading_n">Norte</string>
     <string name="speedo_limit">Máxima %1$d</string>
+    <string name="dock_card">Barra inferior</string>
+    <string name="dock_card_hint">Tocá un acceso para cambiarle el ícono, el nombre o la app. Con las flechas cambiás el orden.</string>
+    <string name="dock_add">Agregar app</string>
+    <string name="dock_reset">Restablecer</string>
+    <string name="dock_reset_confirm">¿Volver a Apps, Android Auto, Mapa y Ajustes? Se quitan las apps agregadas.</string>
+    <string name="dock_pick">la barra inferior</string>
+    <string name="dock_icon">Cambiar ícono</string>
+    <string name="dock_rename">Cambiar nombre</string>
+    <string name="dock_change_app">Cambiar app</string>
+    <string name="dock_remove">Quitar</string>
+    <string name="dock_icon_original">Ícono de la app</string>
+    <string name="dock_ok">Listo</string>
+    <string name="dock_open_failed">No pude abrir %1$s.</string>
+    <string name="dock_auto_detail">Abre Headunit Reloaded u Open Headunit</string>
+    <string name="dock_app_detail">Abre %1$s</string>
 </resources>

@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
@@ -304,8 +305,6 @@ class MainActivity : Activity() {
         if (osmandHomeWanted()) {
             overlay = HomeOverlay(this).also { it.attach() }
             Foreground.listener = { pkg, cls -> onForeground(pkg, cls) }
-            // "Mapa" en el dock: OsmAnd completo.
-            findViewById<View>(R.id.dock_maps).setOnClickListener { overlay?.setFull(true) }
         }
     }
 
@@ -1316,26 +1315,75 @@ class MainActivity : Activity() {
 
     // ---------- Dock, reloj y conexión ----------
 
+    private lateinit var dockItems: LinearLayout
+
     private fun setupDock() {
-        findViewById<View>(R.id.dock_apps).setOnClickListener {
-            startActivity(Intent(this, AppsActivity::class.java))
-        }
-        bindDock(R.id.dock_radio, Dock.RADIO, getString(R.string.label_radio))
-        bindDock(R.id.dock_phone, Dock.PHONE, getString(R.string.label_phone))
-        bindDock(R.id.dock_maps, Dock.MAPS, getString(R.string.label_maps))
-        findViewById<View>(R.id.dock_music).setOnClickListener { openSource() }
-        findViewById<View>(R.id.dock_settings).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+        // Se guarda la referencia: en modo OsmAnd la barra pasa a otra ventana.
+        dockItems = findViewById(R.id.dock_items)
+        renderDock()
+    }
+
+    /** Arma la barra según Ajustes (DockConfig). */
+    private fun renderDock() {
+        val d = resources.displayMetrics.density
+        dockItems.removeAllViews()
+        for (item in DockConfig.load(this)) {
+            if (!item.visible) continue
+            val box = LinearLayout(this)
+            box.orientation = LinearLayout.VERTICAL
+            box.gravity = Gravity.CENTER
+            box.setBackgroundResource(R.drawable.bg_dock_item)
+            box.minimumWidth = (58 * d).toInt()
+            box.setPadding((6 * d).toInt(), 0, (6 * d).toInt(), 0)
+            box.isClickable = true
+            val icon = ImageView(this)
+            icon.setImageDrawable(DockConfig.drawable(this, item))
+            icon.scaleType = ImageView.ScaleType.FIT_CENTER
+            icon.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            box.addView(icon, LinearLayout.LayoutParams((17 * d).toInt(), (17 * d).toInt()))
+            val label = TextView(this)
+            label.text = item.label
+            label.setTextColor(getColor(R.color.text))
+            label.textSize = 9f
+            label.maxLines = 1
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.topMargin = (3 * d).toInt()
+            box.addView(label, lp)
+            box.setOnClickListener { openDockItem(item) }
+            if (item.id in listOf(DockConfig.AUTO, DockConfig.MAPS, DockConfig.RADIO, DockConfig.PHONE)) {
+                // Mantener apretado: elegir otra app para ese botón.
+                box.setOnLongClickListener {
+                    Dock.pick(this, item.id, item.label)
+                    true
+                }
+            }
+            val blp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, (44 * d).toInt())
+            blp.marginStart = (3 * d).toInt()
+            blp.marginEnd = (3 * d).toInt()
+            dockItems.addView(box, blp)
         }
     }
 
-    private fun bindDock(viewId: Int, key: String, label: String) {
-        val view = findViewById<View>(viewId)
-        view.setOnClickListener { Dock.open(this, key, label) }
-        // Mantener apretado: elegir otra app para ese botón.
-        view.setOnLongClickListener {
-            Dock.pick(this, key, label)
-            true
+    private fun openDockItem(item: DockConfig.Item) {
+        val component = item.component
+        if (component != null) {
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                .setComponent(ComponentName.unflattenFromString(component))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(this, getString(R.string.dock_open_failed, item.label), Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        when (item.id) {
+            DockConfig.APPS -> startActivity(Intent(this, AppsActivity::class.java))
+            DockConfig.SETTINGS -> startActivity(Intent(this, SettingsActivity::class.java))
+            DockConfig.MUSIC -> openSource()
+            // Con OsmAnd en el inicio, "Mapa" lo pone a pantalla completa.
+            DockConfig.MAPS -> overlay?.setFull(true) ?: Dock.open(this, Dock.MAPS, item.label)
+            else -> Dock.open(this, item.id, item.label)
         }
     }
 
@@ -1401,6 +1449,7 @@ class MainActivity : Activity() {
             recreate()
             return
         }
+        renderDock()
         if (overlay != null && resumedFully) {
             places = Places.load(this)
             savedPlaces = places.toList()

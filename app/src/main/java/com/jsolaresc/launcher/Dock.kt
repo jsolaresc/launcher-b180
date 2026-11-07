@@ -19,6 +19,10 @@ object Dock {
     const val PHONE = "phone"
     const val RADIO = "radio_ts"
     const val SETTINGS = "settings"
+    const val AUTO = "auto"
+
+    /** Android Auto: Headunit Reloaded (paga o de prueba) u Open Headunit, el que esté. */
+    private val AUTO_PACKAGES = listOf("gb.xxy.hr", "gb.xxy.trial", "com.andrerinas.headunitrevived")
 
     private const val PREFS = "dock"
     private const val MAPS_PACKAGE = "com.google.android.apps.maps"
@@ -64,6 +68,7 @@ object Dock {
         MAPS -> NavLaunch.osmand(ctx)?.let { ctx.packageManager.getLaunchIntentForPackage(it) }
             ?: ctx.packageManager.getLaunchIntentForPackage(MAPS_PACKAGE)
         SETTINGS -> Intent(Settings.ACTION_SETTINGS)
+        AUTO -> AUTO_PACKAGES.firstNotNullOfOrNull { ctx.packageManager.getLaunchIntentForPackage(it) }
         MUSIC -> Intent(Intent.ACTION_MAIN).setComponent(BT_MUSIC)
         RADIO -> Intent(Intent.ACTION_MAIN).setComponent(RADIO_SCREEN)
         else -> null

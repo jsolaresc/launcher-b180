@@ -64,6 +64,7 @@ class SettingsActivity : Activity() {
         findViewById<TextView>(R.id.settings_version).text = getString(R.string.version, version)
         findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
         setupOsmandHome()
+        setupDockCard()
 
         // Arranque en frío del GPS: borra los datos viejos (por ejemplo, de cuando la fecha estaba en 2007).
         findViewById<View>(R.id.gps_reset).setOnClickListener {
@@ -155,6 +156,245 @@ class SettingsActivity : Activity() {
     }
 
     // ---------- Tema ----------
+
+    // ---------- Barra inferior ----------
+
+    private val reqDockApp = 43
+    private lateinit var dockList: LinearLayout
+    private var dockItems: MutableList<DockConfig.Item> = mutableListOf()
+    /** Acceso al que se le cambia la app (null: agregar uno nuevo). */
+    private var dockTarget: String? = null
+
+    private fun setupDockCard() {
+        dockList = findViewById(R.id.dock_list)
+        dockItems = DockConfig.load(this)
+        renderDockList()
+        findViewById<View>(R.id.dock_add).setOnClickListener {
+            dockTarget = null
+            pickDockApp()
+        }
+        findViewById<View>(R.id.dock_reset).setOnClickListener {
+            AlertDialog.Builder(this, Theme.dialogTheme(this))
+                .setMessage(R.string.dock_reset_confirm)
+                .setPositiveButton(R.string.dock_reset) { _, _ ->
+                    DockConfig.reset(this)
+                    dockItems = DockConfig.load(this)
+                    renderDockList()
+                }
+                .setNegativeButton(R.string.offline_cancel, null)
+                .show()
+        }
+    }
+
+    private fun saveDock() {
+        DockConfig.save(this, dockItems)
+        renderDockList()
+    }
+
+    private fun pickDockApp() {
+        @Suppress("DEPRECATION")
+        startActivityForResult(
+            Intent(this, AppsActivity::class.java)
+                .putExtra(AppsActivity.EXTRA_PICK_KEY, AppsActivity.PICK_RETURN)
+                .putExtra(AppsActivity.EXTRA_PICK_LABEL, getString(R.string.dock_pick)),
+            reqDockApp
+        )
+    }
+
+    private fun onDockAppPicked(resultCode: Int, data: Intent?) {
+        val flat = data?.getStringExtra(AppsActivity.EXTRA_COMPONENT)
+        val component = flat?.let { ComponentName.unflattenFromString(it) }
+        if (resultCode != RESULT_OK || component == null) return
+        val label = data.getStringExtra(AppsActivity.EXTRA_APP_LABEL) ?: component.packageName
+        val target = dockTarget?.let { id -> dockItems.firstOrNull { it.id == id } }
+        if (target != null) {
+            if (target.component != null) {
+                target.component = component.flattenToString()
+                if (DockConfig.ICONS.containsKey(target.icon).not()) target.icon = DockConfig.guessIcon(component.packageName)
+            } else {
+                // Fijo (Android Auto, Mapa, Radio, Teléfono): se guarda en Dock como antes.
+                Dock.save(this, target.id, component)
+            }
+            saveDock()
+            return
+        }
+        val item = DockConfig.newApp(component, label)
+        dockItems.removeAll { it.id == item.id }
+        // Antes de Ajustes, si está; si no, al final.
+        val at = dockItems.indexOfFirst { it.id == DockConfig.SETTINGS && it.visible }
+        if (at >= 0) dockItems.add(at, item) else dockItems.add(item)
+        saveDock()
+        chooseDockIcon(item)
+    }
+
+    private fun renderDockList() {
+        val d = resources.displayMetrics.density
+        dockList.removeAllViews()
+        dockItems.forEachIndexed { index, item ->
+            val row = LinearLayout(this)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER_VERTICAL
+            row.setPadding(0, (4 * d).toInt(), 0, (4 * d).toInt())
+            row.isClickable = true
+            row.setOnClickListener { editDockItem(item) }
+
+            val icon = android.widget.ImageView(this)
+            icon.setImageDrawable(DockConfig.drawable(this, item))
+            icon.alpha = if (item.visible) 1f else 0.4f
+            row.addView(icon, LinearLayout.LayoutParams((20 * d).toInt(), (20 * d).toInt()))
+
+            val texts = LinearLayout(this)
+            texts.orientation = LinearLayout.VERTICAL
+            texts.setPadding((10 * d).toInt(), 0, 0, 0)
+            val name = TextView(this)
+            name.text = item.label
+            name.setTextColor(getColor(if (item.visible) R.color.text else R.color.muted))
+            name.textSize = 11f
+            texts.addView(name)
+            dockDetail(item)?.let {
+                val sub = TextView(this)
+                sub.text = it
+                sub.setTextColor(getColor(R.color.muted))
+                sub.textSize = 8f
+                sub.maxLines = 1
+                texts.addView(sub)
+            }
+            row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+            fun arrow(res: Int, delta: Int) {
+                val b = android.widget.ImageButton(this)
+                b.setImageResource(res)
+                b.setBackgroundResource(R.drawable.bg_option)
+                b.scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+                b.setPadding((7 * d).toInt(), (7 * d).toInt(), (7 * d).toInt(), (7 * d).toInt())
+                val target = index + delta
+                b.isEnabled = target in dockItems.indices
+                b.alpha = if (b.isEnabled) 1f else 0.3f
+                b.setOnClickListener {
+                    java.util.Collections.swap(dockItems, index, target)
+                    saveDock()
+                }
+                val lp = LinearLayout.LayoutParams((32 * d).toInt(), (30 * d).toInt())
+                lp.marginStart = (5 * d).toInt()
+                row.addView(b, lp)
+            }
+            arrow(R.drawable.ic_prev, -1)
+            arrow(R.drawable.ic_next, 1)
+
+            val sw = Switch(this)
+            sw.isChecked = item.visible
+            sw.thumbTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.text))
+            sw.trackTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
+            sw.setOnCheckedChangeListener { _, on ->
+                item.visible = on
+                saveDock()
+            }
+            val slp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, (30 * d).toInt())
+            slp.marginStart = (8 * d).toInt()
+            row.addView(sw, slp)
+            dockList.addView(row)
+        }
+    }
+
+    private fun appName(component: ComponentName): String = try {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(component.packageName, 0)).toString()
+    } catch (e: Exception) {
+        component.packageName
+    }
+
+    /** Qué abre cada acceso (renglón chico). */
+    private fun dockDetail(item: DockConfig.Item): String? {
+        item.component?.let { return getString(R.string.dock_app_detail, appName(ComponentName.unflattenFromString(it)!!)) }
+        Dock.saved(this, item.id)?.let { if (item.id != DockConfig.SETTINGS) return getString(R.string.dock_app_detail, appName(it)) }
+        return when (item.id) {
+            DockConfig.AUTO -> getString(R.string.dock_auto_detail)
+            DockConfig.MAPS -> getString(R.string.dock_app_detail, Dock.navigatorName(this))
+            else -> null
+        }
+    }
+
+    private fun editDockItem(item: DockConfig.Item) {
+        val canChangeApp = item.component != null ||
+            item.id in listOf(DockConfig.AUTO, DockConfig.MAPS, DockConfig.RADIO, DockConfig.PHONE)
+        val options = ArrayList<Pair<Int, () -> Unit>>()
+        options.add(R.string.dock_icon to { chooseDockIcon(item) })
+        options.add(R.string.dock_rename to { renameDockItem(item) })
+        if (canChangeApp) options.add(R.string.dock_change_app to {
+            dockTarget = item.id
+            pickDockApp()
+        })
+        if (item.component != null) options.add(R.string.dock_remove to {
+            dockItems.remove(item)
+            saveDock()
+        })
+        AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(item.label)
+            .setItems(options.map { getString(it.first) }.toTypedArray()) { _, which -> options[which].second() }
+            .setNegativeButton(R.string.offline_cancel, null)
+            .show()
+    }
+
+    private fun renameDockItem(item: DockConfig.Item) {
+        val input = android.widget.EditText(this)
+        input.setText(item.label)
+        input.setSelection(item.label.length)
+        input.setSingleLine()
+        input.setTextColor(getColor(R.color.text))
+        val d = resources.displayMetrics.density
+        val box = android.widget.FrameLayout(this)
+        box.setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
+        box.addView(input)
+        AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(R.string.dock_rename)
+            .setView(box)
+            .setPositiveButton(R.string.dock_ok) { _, _ ->
+                val text = input.text.toString().trim()
+                if (text.isNotEmpty()) {
+                    item.label = text
+                    saveDock()
+                }
+            }
+            .setNegativeButton(R.string.offline_cancel, null)
+            .show()
+    }
+
+    /** Grilla de íconos de línea (y el de la app, si es una agregada). */
+    private fun chooseDockIcon(item: DockConfig.Item) {
+        val d = resources.displayMetrics.density
+        val keys = ArrayList<String>()
+        if (item.component != null) keys.add(DockConfig.ICON_ORIGINAL)
+        keys.addAll(DockConfig.ICONS.keys)
+        var dialog: AlertDialog? = null
+        val grid = android.widget.GridLayout(this)
+        grid.columnCount = 8
+        grid.setPadding((12 * d).toInt(), (8 * d).toInt(), (12 * d).toInt(), 0)
+        for (key in keys) {
+            val b = android.widget.ImageButton(this)
+            val drawable = if (key == DockConfig.ICON_ORIGINAL) {
+                DockConfig.drawable(this, DockConfig.Item("x", "", key, true, item.component))
+            } else getDrawable(DockConfig.ICONS[key]!!)
+            b.setImageDrawable(drawable)
+            b.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            b.setBackgroundResource(if (key == item.icon) R.drawable.bg_dock_item_active else R.drawable.bg_option)
+            b.setPadding((9 * d).toInt(), (9 * d).toInt(), (9 * d).toInt(), (9 * d).toInt())
+            b.contentDescription = if (key == DockConfig.ICON_ORIGINAL) getString(R.string.dock_icon_original) else key
+            b.setOnClickListener {
+                item.icon = key
+                saveDock()
+                dialog?.dismiss()
+            }
+            val lp = android.widget.GridLayout.LayoutParams()
+            lp.width = (40 * d).toInt()
+            lp.height = (40 * d).toInt()
+            lp.setMargins((3 * d).toInt(), (3 * d).toInt(), (3 * d).toInt(), (3 * d).toInt())
+            grid.addView(b, lp)
+        }
+        dialog = AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(getString(R.string.dock_icon) + " · " + item.label)
+            .setView(android.widget.ScrollView(this).apply { addView(grid) })
+            .setNegativeButton(R.string.offline_cancel, null)
+            .show()
+    }
 
     private fun setupTheme() {
         val options = mapOf(
@@ -650,6 +890,10 @@ class SettingsActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == reqDockApp) {
+            onDockAppPicked(resultCode, data)
+            return
+        }
         if (requestCode != reqPick) return
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) {
