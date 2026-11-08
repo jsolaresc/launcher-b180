@@ -21,8 +21,8 @@ object Dock {
     const val SETTINGS = "settings"
     const val AUTO = "auto"
 
-    /** Android Auto: Headunit Reloaded (paga o de prueba) u Open Headunit, el que esté. */
-    private val AUTO_PACKAGES = listOf("gb.xxy.hr", "gb.xxy.trial", "com.andrerinas.headunitrevived")
+    /** Android Auto: Open Headunit primero; si no está, Headunit Reloaded (paga o de prueba). */
+    private val AUTO_PACKAGES = listOf("com.andrerinas.headunitrevived", "gb.xxy.hr", "gb.xxy.trial")
 
     private const val PREFS = "dock"
     private const val MAPS_PACKAGE = "com.google.android.apps.maps"

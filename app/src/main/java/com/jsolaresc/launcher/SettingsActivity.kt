@@ -919,6 +919,15 @@ class SettingsActivity : Activity() {
         n.startsWith("destinos") && n.endsWith(".txt")
     }
 
+    /** Lugares que se pudieron leer en la última búsqueda (para explicar si no aparece nada). */
+    private var lastRoots: List<File> = emptyList()
+
+    private fun notFoundText(): String {
+        val seen = lastRoots.filter { (it.listFiles()?.size ?: 0) > 0 }.map { it.path }
+        return getString(R.string.import_not_found) + "\n" +
+            if (seen.isEmpty()) getString(R.string.import_no_storage) else getString(R.string.import_seen, seen.joinToString(" · "))
+    }
+
     private fun findOnUsb(match: (File) -> Boolean): File? {
         val roots = LinkedHashSet<File>()
         try {
@@ -931,9 +940,15 @@ class SettingsActivity : Activity() {
             }
         } catch (e: Exception) {
         }
-        for (base in listOf("/storage", "/mnt", "/mnt/media_rw")) {
+        for (base in listOf("/storage", "/mnt", "/mnt/media_rw", "/mnt/usb_storage", "/mnt/udisk")) {
             File(base).listFiles()?.forEach { roots.add(it) }
         }
+        // También la memoria del estéreo (por ejemplo, si se bajó con el navegador a Descargas).
+        @Suppress("DEPRECATION")
+        val internal = android.os.Environment.getExternalStorageDirectory()
+        roots.add(internal)
+        roots.add(File(internal, "Download"))
+        lastRoots = roots.filter { it.canRead() }
         for (root in roots) {
             val top = root.listFiles() ?: continue
             top.firstOrNull { it.isFile && match(it) && it.canRead() }?.let { return it }
@@ -953,7 +968,7 @@ class SettingsActivity : Activity() {
                 reqPick
             )
         } catch (e: Exception) {
-            offlineStatus.setText(R.string.import_not_found)
+            offlineStatus.text = notFoundText()
         }
     }
 
@@ -967,7 +982,7 @@ class SettingsActivity : Activity() {
         if (requestCode != reqPick) return
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) {
-            offlineStatus.setText(R.string.import_not_found)
+            offlineStatus.text = notFoundText()
             return
         }
         // Elegido con el selector: hay que copiarlo primero (no hay ruta directa).
