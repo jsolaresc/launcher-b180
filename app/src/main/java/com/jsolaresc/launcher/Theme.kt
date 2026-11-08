@@ -42,8 +42,8 @@ object Prefs {
     fun setSaveVisited(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("save_visited", v).apply()
 
     /** Inicio con el mapa de OsmAnd (si está instalado y con permiso de mostrarse encima). */
-    fun osmandHome(ctx: Context) = p(ctx).getBoolean("osmand_home", true)
-    fun setOsmandHome(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("osmand_home", v).apply()
+    fun osmandHome(ctx: Context) = p(ctx).getBoolean("osmand_home_v2", false)
+    fun setOsmandHome(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("osmand_home_v2", v).apply()
 
     /** Volumen de la música mientras habla OsmAnd (en pasos del volumen del estéreo). */
     fun duckVolume(ctx: Context) = p(ctx).getInt("duck_volume", 2)
