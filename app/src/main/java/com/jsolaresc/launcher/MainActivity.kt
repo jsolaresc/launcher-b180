@@ -63,8 +63,17 @@ class MainActivity : Activity() {
 
     private var overlay: HomeOverlay? = null
 
+    // Sin el servicio de accesibilidad el panel no sabe cuándo esconderse y tapaba otras apps
+    // (por ejemplo, Ajustes de Wi-Fi): en ese caso se usa el mapa propio.
     private fun osmandHomeWanted() = Prefs.osmandHome(this) && NavLaunch.osmand(this) != null &&
-        android.provider.Settings.canDrawOverlays(this)
+        android.provider.Settings.canDrawOverlays(this) && accessibilityOn()
+
+    private fun accessibilityOn(): Boolean {
+        val enabled = android.provider.Settings.Secure.getString(
+            contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return enabled.split(':').any { it.startsWith("$packageName/") }
+    }
 
     private var askedOverlay = false
 
