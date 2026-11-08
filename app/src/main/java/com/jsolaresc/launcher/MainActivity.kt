@@ -100,7 +100,8 @@ class MainActivity : Activity() {
     private fun bringOsmAnd() {
         val o = overlay ?: return
         val pkg = NavLaunch.osmand(this) ?: return
-        o.setFull(false)
+        // Márgenes antes de traer OsmAnd: los aplica al volver a primer plano.
+        o.setFull(false, relayout = false)
         o.show()
         val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return
         try {
@@ -110,8 +111,7 @@ class MainActivity : Activity() {
         } catch (e: Exception) {
         }
         // OsmAnd aplica los márgenes cuando su mapa ya está abierto.
-        handler.postDelayed({ overlay?.applyToOsmAnd() }, 1500)
-        handler.postDelayed({ overlay?.applyToOsmAnd() }, 5000)
+        handler.postDelayed({ overlay?.applyToOsmAnd(relayout = true) }, 1500)
     }
 
     /** Sin el permiso de Accesibilidad no se sabe qué app está adelante: se esconde al abrir otra desde acá. */
@@ -130,6 +130,8 @@ class MainActivity : Activity() {
         val o = overlay ?: return
         when {
             NavLaunch.isOsmand(pkg) -> o.show()
+            // La pantalla invisible que reacomoda OsmAnd no cuenta.
+            pkg == packageName && cls == RelayoutActivity::class.java.name -> {}
             pkg == packageName && cls == MainActivity::class.java.name -> o.show()
             else -> o.hide()
         }

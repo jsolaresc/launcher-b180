@@ -211,4 +211,8 @@
     <string name="overlay_needed">Para poner el mapa de OsmAnd en el inicio, el launcher tiene que poder mostrarse encima de otras apps. Activá "Permitir mostrar sobre otras apps" para Launcher B180 y volvé.</string>
     <string name="overlay_needed_grant">Dar permiso</string>
     <string name="overlay_needed_skip">Usar el mapa del launcher</string>
+    <string name="destinos_empty">destinos.txt no tiene destinos. Cada renglón: Nombre; dirección</string>
+    <string name="destinos_searching">Buscando %1$d direcciones en OsmAnd…</string>
+    <string name="destinos_none">OsmAnd no encontró ninguna dirección. Fijate que tenga descargado el mapa de Buenos Aires.</string>
+    <string name="destinos_timeout">OsmAnd no respondió. Abrilo una vez, fijate que tenga el mapa de Buenos Aires y probá de nuevo.</string>
 </resources>

@@ -47,6 +47,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Invisible: hace que OsmAnd vuelva a primer plano y aplique los márgenes. -->
+        <activity
+            android:name=".RelayoutActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity="com.jsolaresc.launcher.relayout"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <activity
             android:name=".AppsActivity"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation|uiMode"

@@ -73,10 +73,10 @@ class HomeOverlay(private val activity: Activity) {
         return params(size, size, Gravity.TOP or Gravity.END, x, (12 * d).toInt())
     }
 
-    fun setFull(on: Boolean) {
+    fun setFull(on: Boolean, relayout: Boolean = true) {
         full = on
         if (attached) wm.updateViewLayout(toggle, toggleParams())
-        applyToOsmAnd()
+        applyToOsmAnd(relayout)
         render()
     }
 
@@ -100,13 +100,37 @@ class HomeOverlay(private val activity: Activity) {
     }
 
     /** Le dice a OsmAnd cuánto lugar ocupa el panel y si debe mostrar pocos botones. */
-    fun applyToOsmAnd() {
+    /**
+     * Le dice a OsmAnd dónde queda su mapa. En el inicio es una tarjeta: el hueco entre
+     * el borde izquierdo, la columna del launcher y el dock (así queda centrado y el nombre
+     * de la calle no queda tapado). OsmAnd lo aplica al volver a primer plano: con
+     * [relayout] se fuerza eso enseguida.
+     */
+    fun applyToOsmAnd(relayout: Boolean = false) {
+        val gap = (8 * d).toInt()
         if (full) {
-            OsmAnd.setMargins(activity, 0, 0)
+            OsmAnd.setMargins(activity, 0, 0, 0, 0)
             OsmAnd.setMinimal(activity, false)
         } else {
-            OsmAnd.setMargins(activity, columnWidth + (16 * d).toInt(), dockHeight)
+            OsmAnd.setMargins(activity, gap, gap, columnWidth + 2 * gap, dockHeight)
             OsmAnd.setMinimal(activity, true)
+        }
+        if (relayout) handler.postDelayed({ relayoutOsmAnd() }, 250)
+    }
+
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun relayoutOsmAnd() {
+        if (!attached || !shown) return
+        try {
+            activity.applicationContext.startActivity(
+                android.content.Intent(activity, RelayoutActivity::class.java)
+                    .addFlags(
+                        android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                            android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                    )
+            )
+        } catch (e: Exception) {
         }
     }
 

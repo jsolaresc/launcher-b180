@@ -777,7 +777,7 @@ class SettingsActivity : Activity() {
     private fun importFound(): Boolean {
         val calles = findOnUsb(callesName)
         val mapa = findOnUsb(importName)
-        val destinos = findOnUsb("destinos.txt")
+        val destinos = findDestinos()
         if (calles == null && mapa == null && destinos == null) return false
         if (destinos != null) importDestinos(destinos)
         if (calles != null) importCalles(calles, temporary = false)
@@ -790,36 +790,83 @@ class SettingsActivity : Activity() {
      * Las direcciones se ubican con los mapas de OsmAnd (sin internet) y quedan también como favoritos.
      */
     private fun importDestinos(file: File) {
-        val lines = try {
-            file.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.contains(";") && !it.startsWith("#") }
+        val bytes = try {
+            file.readBytes()
         } catch (e: Exception) {
-            emptyList()
+            ByteArray(0)
         }
-        if (lines.isEmpty() || NavLaunch.osmand(this) == null) {
-            Toast.makeText(this, R.string.destinos_need_osmand, Toast.LENGTH_LONG).show()
+        // UTF-8 (con o sin BOM) o, si lo guardó el Bloc de notas viejo, Windows-1252.
+        var text = String(bytes, Charsets.UTF_8)
+        if (text.contains('\uFFFD')) text = String(bytes, charset("windows-1252"))
+        val lines = text.removePrefix("\uFEFF").lines()
+            .map { it.trim().removePrefix("\uFEFF") }
+            .filter { it.contains(";") && !it.startsWith("#") }
+            .filter { it.substringBefore(";").isNotBlank() && it.substringAfter(";").isNotBlank() }
+        if (lines.isEmpty()) {
+            showDestinos(getString(R.string.destinos_empty))
             return
         }
+        if (NavLaunch.osmand(this) == null) {
+            showDestinos(getString(R.string.destinos_need_osmand))
+            return
+        }
+        showDestinos(getString(R.string.destinos_searching, lines.size))
         val old = Places.load(this)
         val found = arrayOfNulls<Place>(lines.size)
         val missing = ArrayList<String>()
         var pending = lines.size
+        var finished = false
+        fun finish() {
+            if (finished) return
+            finished = true
+            val list = found.filterNotNull()
+            if (list.isEmpty()) {
+                showDestinos(getString(R.string.destinos_none))
+                return
+            }
+            Places.save(this, list)
+            OsmAnd.syncFavorites(this, old, list)
+            val all = lines.indices.filter { found[it] == null }.map { lines[it].substringBefore(";").trim() }
+            showDestinos(
+                if (all.isEmpty()) getString(R.string.destinos_done, list.size)
+                else getString(R.string.destinos_partial, list.size, all.joinToString(", "))
+            )
+        }
+        // Si OsmAnd no contesta (por ejemplo, sin el mapa de Buenos Aires), se avisa igual.
+        main.postDelayed({ if (!finished) {
+            if (found.any { it != null }) finish() else {
+                finished = true
+                showDestinos(getString(R.string.destinos_timeout))
+            }
+        } }, 30_000)
         lines.forEachIndexed { i, line ->
             val name = line.substringBefore(";").trim()
             val address = line.substringAfter(";").trim()
-            OsmAnd.search(this, address, -34.6037, -58.3816) { results ->
-                val r = results.firstOrNull()
-                if (r != null) found[i] = Place(name, r.latitude, r.longitude) else missing.add(name)
+            searchAddress(address) { place ->
+                if (place != null) found[i] = Place(name, place.first, place.second) else missing.add(name)
                 pending--
-                if (pending == 0) {
-                    val list = found.filterNotNull()
-                    Places.save(this, list)
-                    OsmAnd.syncFavorites(this, old, list)
-                    val text = if (missing.isEmpty()) getString(R.string.destinos_done, list.size)
-                    else getString(R.string.destinos_partial, list.size, missing.joinToString(", "))
-                    Toast.makeText(applicationContext, text, Toast.LENGTH_LONG).show()
-                }
+                if (pending == 0) finish()
             }
         }
+    }
+
+    /** Busca la dirección completa; si no aparece, prueba solo calle y altura. */
+    private fun searchAddress(address: String, done: (Pair<Double, Double>?) -> Unit) {
+        OsmAnd.search(this, address, -34.6037, -58.3816) { results ->
+            val r = results.firstOrNull()
+            if (r != null) return@search done(r.latitude to r.longitude)
+            val short = address.substringBefore(",").trim()
+            if (short == address) return@search done(null)
+            OsmAnd.search(this, short, -34.6037, -58.3816) { again ->
+                val r2 = again.firstOrNull()
+                done(r2?.let { it.latitude to it.longitude })
+            }
+        }
+    }
+
+    private fun showDestinos(text: String) {
+        offlineStatus.text = text
+        Toast.makeText(applicationContext, text, Toast.LENGTH_LONG).show()
     }
 
     /** calles-amba: se copia tal cual (unos 20 MB) y el inicio pasa a usarlo. */
@@ -847,6 +894,13 @@ class SettingsActivity : Activity() {
         }.start()
     }
 
+    private fun isSqlite(file: File): Boolean = try {
+        val head = ByteArray(15)
+        file.inputStream().use { it.read(head) } == 15 && String(head, Charsets.US_ASCII) == "SQLite format 3"
+    } catch (e: Exception) {
+        false
+    }
+
     /** Archivo elegido con el selector: se mira qué es por su contenido. */
     private fun isCallesFile(file: File): Boolean = try {
         android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY).use { db ->
@@ -857,7 +911,15 @@ class SettingsActivity : Activity() {
     }
 
     /** Busca el archivo en la raíz (o una carpeta adentro) de cada memoria conectada. */
-    private fun findOnUsb(name: String): File? {
+    private fun findOnUsb(name: String): File? = findOnUsb { it.name == name }
+
+    /** destinos.txt sin importar mayúsculas ni el ".txt" repetido que deja Windows al ocultar extensiones. */
+    private fun findDestinos(): File? = findOnUsb {
+        val n = it.name.lowercase()
+        n.startsWith("destinos") && n.endsWith(".txt")
+    }
+
+    private fun findOnUsb(match: (File) -> Boolean): File? {
         val roots = LinkedHashSet<File>()
         try {
             val sm = getSystemService(Context.STORAGE_SERVICE) as android.os.storage.StorageManager
@@ -873,11 +935,11 @@ class SettingsActivity : Activity() {
             File(base).listFiles()?.forEach { roots.add(it) }
         }
         for (root in roots) {
-            val direct = File(root, name)
-            if (direct.canRead()) return direct
-            root.listFiles()?.forEach { sub ->
-                val f = File(sub, name)
-                if (f.canRead()) return f
+            val top = root.listFiles() ?: continue
+            top.firstOrNull { it.isFile && match(it) && it.canRead() }?.let { return it }
+            for (sub in top) {
+                if (!sub.isDirectory) continue
+                sub.listFiles()?.firstOrNull { it.isFile && match(it) && it.canRead() }?.let { return it }
             }
         }
         return null
@@ -937,7 +999,10 @@ class SettingsActivity : Activity() {
             }
             main.post {
                 importing = false
-                if (ok && isCallesFile(temp)) importCalles(temp, temporary = true)
+                if (ok && !isSqlite(temp)) {
+                    importDestinos(temp)
+                    temp.delete()
+                } else if (ok && isCallesFile(temp)) importCalles(temp, temporary = true)
                 else if (ok) importFile(temp, temporary = true) else {
                     temp.delete()
                     offlineStatus.setText(R.string.import_failed)

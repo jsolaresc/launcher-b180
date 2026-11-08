@@ -95,8 +95,8 @@ object OsmAnd {
      * Lugar del panel del launcher: el costado derecho y el dock, en píxeles.
      * Ojo: OsmAnd 5.4 intercambia derecha y abajo al recibirlos; se compensa acá.
      */
-    fun setMargins(ctx: Context, right: Int, bottom: Int) = withApi(ctx) {
-        it.setMapMargins(MapMarginsParams(0, 0, bottom, right, listOf("car", "default")))
+    fun setMargins(ctx: Context, left: Int, top: Int, right: Int, bottom: Int) = withApi(ctx) {
+        it.setMapMargins(MapMarginsParams(left, top, bottom, right, listOf("car", "default", "bicycle", "pedestrian")))
     }
 
     /** Pocos botones en el inicio; con el mapa completo, todos. */
