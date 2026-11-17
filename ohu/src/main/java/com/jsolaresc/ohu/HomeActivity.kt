@@ -199,7 +199,7 @@ class HomeActivity : Activity() {
 
         val icon = ImageView(this)
         icon.setImageResource(R.drawable.ic_launcher)
-        big.addView(icon, LinearLayout.LayoutParams(px(120), px(120)).apply { topMargin = px(12) })
+        big.addView(icon, LinearLayout.LayoutParams(px(96), px(96)).apply { topMargin = px(10) })
 
         val title = TextView(this).apply {
             text = "Android Auto"
@@ -239,18 +239,22 @@ class HomeActivity : Activity() {
         }
         items.add("Elegir pantalla de inicio" to { cancelCountdown(); launch(Intent(Settings.ACTION_HOME_SETTINGS)) })
         for ((label, action) in items) {
-            side.addView(pill(label, card, fgColor) { action() }, LinearLayout.LayoutParams(-1, px(52)).apply { bottomMargin = px(8) })
+            side.addView(pill(label, card, fgColor) { action() }, LinearLayout.LayoutParams(-1, px(40)).apply { bottomMargin = px(6) })
         }
         side.addView(toggle("Abrir al encender", KEY_ON_BOOT, true))
         side.addView(toggle("Abrir también al apretar Inicio", KEY_ON_HOME, false))
-        row.addView(side, LinearLayout.LayoutParams(px(300), -1))
+        // Con scroll por si no entra todo en la pantalla del estéreo (1024×600 a 240 dpi).
+        val scroll = android.widget.ScrollView(this)
+        scroll.isVerticalScrollBarEnabled = false
+        scroll.addView(side)
+        row.addView(scroll, LinearLayout.LayoutParams(px(260), -1))
         return row
     }
 
     private fun pill(label: String, color: Int, fg: Int, onClick: () -> Unit) = TextView(this).apply {
         text = label
         setTextColor(fg)
-        textSize = 16f
+        textSize = 15f
         gravity = Gravity.CENTER_VERTICAL
         setPadding(px(18), 0, px(18), 0)
         background = rounded(color, 16f)
