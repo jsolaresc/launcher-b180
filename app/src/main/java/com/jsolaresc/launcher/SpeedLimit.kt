@@ -44,13 +44,27 @@ class SpeedLimit(private val ctx: Context, private val onChange: (Int?, String?)
 
     private var lastOffline = 0L
     private var lastEmitted: Pair<Int?, String?>? = null
+    private var flightStart = 0L
+    @Volatile
+    private var misses = 0
+
+    /** Sin ubicación nueva (se perdió el GPS): no dejar el nombre de una calle vieja. */
+    fun clear() {
+        if (lastEmitted == null) return
+        lastEmitted = null
+        misses = 0
+        onChange(null, null)
+    }
 
     /** Con calles-amba cargado se resuelve sin conexión, al instante y en cualquier lado del AMBA. */
     private fun updateOffline(loc: Location): Boolean {
         if (!Roads.available(ctx)) return false
         val now = System.currentTimeMillis()
+        // Si una consulta quedó colgada, no frena las siguientes (antes la calle quedaba trabada).
+        if (inFlight && now - flightStart > 5000) inFlight = false
         if (now - lastOffline < 1000 || inFlight) return true
         lastOffline = now
+        flightStart = now
         inFlight = true
         val moving = loc.hasBearing() && loc.hasSpeed() && loc.speed >= 2f
         val lat = loc.latitude
@@ -64,9 +78,15 @@ class SpeedLimit(private val ctx: Context, private val onChange: (Int?, String?)
             }
             inFlight = false
             val result = Pair(way?.maxspeed, way?.name)
-            if (way != null && result != lastEmitted) {
-                lastEmitted = result
-                main.post { onChange(result.first, result.second) }
+            if (way == null) {
+                // Varias veces seguidas sin calle cerca: se borra en vez de dejar la anterior.
+                if (++misses >= 4) main.post { clear() }
+            } else {
+                misses = 0
+                if (result != lastEmitted) {
+                    lastEmitted = result
+                    main.post { onChange(result.first, result.second) }
+                }
             }
         }
         return true

@@ -26,10 +26,12 @@ jobs:
       - name: Compilar
         env:
           CARTO_KEY: ${{ secrets.CARTO_KEY }}
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
+        run: gradle :app:assembleRelease :ohu:assembleRelease --no-daemon --stacktrace
 
       - name: Renombrar APK
-        run: cp app/build/outputs/apk/release/app-release.apk launcher-b180.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk launcher-b180.apk
+          cp ohu/build/outputs/apk/release/ohu-release.apk inicio-android-auto.apk
 
       - name: Publicar versión
         uses: softprops/action-gh-release@v2
@@ -37,5 +39,7 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: Versión 0.1.${{ github.run_number }}
           body: ${{ github.event.head_commit.message }}
-          files: launcher-b180.apk
+          files: |
+            launcher-b180.apk
+            inicio-android-auto.apk
           make_latest: "true"

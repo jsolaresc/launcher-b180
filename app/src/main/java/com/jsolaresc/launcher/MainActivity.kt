@@ -288,11 +288,20 @@ class MainActivity : Activity() {
     private val tsTick = object : Runnable {
         override fun run() {
             pollTs()
+            staleStreetCheck()
             handler.postDelayed(this, 1000)
         }
     }
 
     // Tema automático: luces del auto (cable de iluminación) o, si no, el sol.
+    /** Si el GPS dejó de dar ubicaciones, no se deja el nombre de la última calle. */
+    private fun staleStreetCheck() {
+        if (!::speedLimit.isInitialized) return
+        val loc = navMap.lastFix
+        val stale = loc == null || android.os.SystemClock.elapsedRealtimeNanos() - loc.elapsedRealtimeNanos > 15_000_000_000L
+        if (stale) speedLimit.clear()
+    }
+
     private val themeTick = object : Runnable {
         override fun run() {
             checkAutoTheme()
