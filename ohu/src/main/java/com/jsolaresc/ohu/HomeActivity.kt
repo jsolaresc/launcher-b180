@@ -56,7 +56,7 @@ class HomeActivity : Activity() {
     private val bg = Color.parseColor("#0E1116")
     private val card = Color.parseColor("#1C222C")
     private val chip = Color.parseColor("#262D39")
-    private val text = Color.parseColor("#E8EAED")
+    private val fgColor = Color.parseColor("#E8EAED")
     private val muted = Color.parseColor("#A8B0BC")
     private val accent = Color.parseColor("#8AB4F8")
 
@@ -191,7 +191,7 @@ class HomeActivity : Activity() {
         big.setOnClickListener { openOhu() }
 
         clock = TextView(this).apply {
-            setTextColor(text)
+            setTextColor(fgColor)
             textSize = 44f
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
         }
@@ -203,7 +203,7 @@ class HomeActivity : Activity() {
 
         val title = TextView(this).apply {
             text = "Android Auto"
-            setTextColor(text)
+            setTextColor(fgColor)
             textSize = 26f
             gravity = Gravity.CENTER
         }
@@ -216,7 +216,7 @@ class HomeActivity : Activity() {
         }
         big.addView(status, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(6) })
 
-        stay = pill("Quedarme acá", chip, text) { cancelCountdown() }
+        stay = pill("Quedarme acá", chip, fgColor) { cancelCountdown() }
         stay.visibility = View.GONE
         big.addView(stay, LinearLayout.LayoutParams(-2, px(48)).apply { topMargin = px(16) })
 
@@ -239,7 +239,7 @@ class HomeActivity : Activity() {
         }
         items.add("Elegir pantalla de inicio" to { cancelCountdown(); launch(Intent(Settings.ACTION_HOME_SETTINGS)) })
         for ((label, action) in items) {
-            side.addView(pill(label, card, text) { action() }, LinearLayout.LayoutParams(-1, px(52)).apply { bottomMargin = px(8) })
+            side.addView(pill(label, card, fgColor) { action() }, LinearLayout.LayoutParams(-1, px(52)).apply { bottomMargin = px(8) })
         }
         side.addView(toggle("Abrir al encender", KEY_ON_BOOT, true))
         side.addView(toggle("Abrir también al apretar Inicio", KEY_ON_HOME, false))
@@ -293,10 +293,10 @@ class HomeActivity : Activity() {
 
         val bar = LinearLayout(this)
         bar.gravity = Gravity.CENTER_VERTICAL
-        bar.addView(pill("‹  Volver", chip, text) { panel.visibility = View.GONE }, LinearLayout.LayoutParams(-2, px(48)))
+        bar.addView(pill("‹  Volver", chip, fgColor) { panel.visibility = View.GONE }, LinearLayout.LayoutParams(-2, px(48)))
         bar.addView(TextView(this).apply {
             text = "Apps"
-            setTextColor(text)
+            setTextColor(fgColor)
             textSize = 22f
             setPadding(px(16), 0, 0, 0)
         })
@@ -318,7 +318,7 @@ class HomeActivity : Activity() {
                     setPadding(0, px(8), 0, px(8))
                     addView(ImageView(this@HomeActivity), LinearLayout.LayoutParams(px(52), px(52)))
                     addView(TextView(this@HomeActivity).apply {
-                        setTextColor(text)
+                        setTextColor(fgColor)
                         textSize = 12f
                         maxLines = 1
                         gravity = Gravity.CENTER
