@@ -118,14 +118,48 @@ object OsmAnd {
 
     /** Busca una dirección con los mapas de OsmAnd (sin internet). */
     fun search(ctx: Context, query: String, lat: Double, lon: Double, onResult: (List<SearchResult>) -> Unit) =
+        searchOrFail(ctx, query, lat, lon) { onResult(it ?: emptyList()) }
+
+    private class SearchJob(val query: String, val lat: Double, val lon: Double, val onResult: (List<SearchResult>?) -> Unit)
+
+    private val searchQueue = ArrayDeque<SearchJob>()
+    private var searching = false
+
+    /**
+     * Como [search], pero null si OsmAnd rechazó el pedido. Las búsquedas van de a una:
+     * OsmAnd tiene un solo buscador y cada búsqueda nueva cancelaba la anterior
+     * (por eso destinos.txt nunca terminaba).
+     */
+    fun searchOrFail(ctx: Context, query: String, lat: Double, lon: Double, onResult: (List<SearchResult>?) -> Unit) {
+        searchQueue.addLast(SearchJob(query, lat, lon, onResult))
+        pumpSearch(ctx)
+    }
+
+    private fun pumpSearch(ctx: Context) {
+        if (searching) return
+        val job = searchQueue.removeFirstOrNull() ?: return
+        searching = true
+        var done = false
+        val finish = { r: List<SearchResult>? ->
+            if (!done) {
+                done = true
+                searching = false
+                job.onResult(r)
+                pumpSearch(ctx)
+            }
+        }
+        // Si OsmAnd no contesta, se sigue con la próxima.
+        main.postDelayed({ finish(emptyList()) }, 15_000)
         withApi(ctx) { a ->
-            a.search(SearchParams(query, SearchParams.SEARCH_TYPE_ADDRESS, lat, lon, 1, 5), object : Callback() {
+            val ok = a.search(SearchParams(job.query, SearchParams.SEARCH_TYPE_ADDRESS, job.lat, job.lon, 3, 5), object : Callback() {
                 override fun onSearchComplete(resultSet: MutableList<SearchResult>?) {
                     val list = resultSet?.toList() ?: emptyList()
-                    main.post { onResult(list) }
+                    main.post { finish(list) }
                 }
             })
+            if (!ok) main.post { finish(null) }
         }
+    }
 
     /** Los destinos rápidos quedan como favoritos en el grupo "Launcher" (se ven en el mapa). */
     fun syncFavorites(ctx: Context, old: List<Place>, now: List<Place>) = withApi(ctx) { a ->

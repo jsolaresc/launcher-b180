@@ -217,4 +217,6 @@
     <string name="destinos_searching">Buscando %1$d direcciones en OsmAnd…</string>
     <string name="destinos_none">OsmAnd no encontró ninguna dirección. Fijate que tenga descargado el mapa de Buenos Aires.</string>
     <string name="destinos_timeout">OsmAnd no respondió. Abrilo una vez, fijate que tenga el mapa de Buenos Aires y probá de nuevo.</string>
+    <string name="destinos_progress">Buscando en OsmAnd: %1$d de %2$d…</string>
+    <string name="destinos_refused">OsmAnd rechazó la búsqueda del launcher. Revisá en OsmAnd que Launcher B180 esté permitido entre las apps conectadas.</string>
 </resources>

@@ -813,55 +813,52 @@ class SettingsActivity : Activity() {
         showDestinos(getString(R.string.destinos_searching, lines.size))
         val old = Places.load(this)
         val found = arrayOfNulls<Place>(lines.size)
-        val missing = ArrayList<String>()
+        var refused = false
         var pending = lines.size
-        var finished = false
         fun finish() {
-            if (finished) return
-            finished = true
             val list = found.filterNotNull()
             if (list.isEmpty()) {
-                showDestinos(getString(R.string.destinos_none))
+                showDestinos(getString(if (refused) R.string.destinos_refused else R.string.destinos_none))
                 return
             }
             Places.save(this, list)
             OsmAnd.syncFavorites(this, old, list)
-            val all = lines.indices.filter { found[it] == null }.map { lines[it].substringBefore(";").trim() }
+            val missing = lines.indices.filter { found[it] == null }.map { lines[it].substringBefore(";").trim() }
             showDestinos(
-                if (all.isEmpty()) getString(R.string.destinos_done, list.size)
-                else getString(R.string.destinos_partial, list.size, all.joinToString(", "))
+                if (missing.isEmpty()) getString(R.string.destinos_done, list.size)
+                else getString(R.string.destinos_partial, list.size, missing.joinToString(", "))
             )
         }
-        // Si OsmAnd no contesta (por ejemplo, sin el mapa de Buenos Aires), se avisa igual.
-        main.postDelayed({ if (!finished) {
-            if (found.any { it != null }) finish() else {
-                finished = true
-                showDestinos(getString(R.string.destinos_timeout))
-            }
-        } }, 30_000)
         lines.forEachIndexed { i, line ->
             val name = line.substringBefore(";").trim()
             val address = line.substringAfter(";").trim()
-            searchAddress(address) { place ->
-                if (place != null) found[i] = Place(name, place.first, place.second) else missing.add(name)
+            searchAddress(address) { place, wasRefused ->
+                if (wasRefused) refused = true
+                if (place != null) found[i] = Place(name, place.first, place.second)
                 pending--
+                offlineStatus.text = getString(R.string.destinos_progress, lines.size - pending, lines.size)
                 if (pending == 0) finish()
             }
         }
     }
 
-    /** Busca la dirección completa; si no aparece, prueba solo calle y altura. */
-    private fun searchAddress(address: String, done: (Pair<Double, Double>?) -> Unit) {
-        OsmAnd.search(this, address, -34.6037, -58.3816) { results ->
-            val r = results.firstOrNull()
-            if (r != null) return@search done(r.latitude to r.longitude)
-            val short = address.substringBefore(",").trim()
-            if (short == address) return@search done(null)
-            OsmAnd.search(this, short, -34.6037, -58.3816) { again ->
-                val r2 = again.firstOrNull()
-                done(r2?.let { it.latitude to it.longitude })
+    /** Busca la dirección completa; si no aparece, solo calle y altura; después sin "Avenida". */
+    private fun searchAddress(address: String, done: (Pair<Double, Double>?, Boolean) -> Unit) {
+        val tries = LinkedHashSet<String>()
+        tries.add(address)
+        val short = address.substringBefore(",").trim()
+        tries.add(short)
+        tries.add(short.replace(Regex("^(Avenida|Av\\.?) ", RegexOption.IGNORE_CASE), ""))
+        val list = tries.filter { it.isNotBlank() }
+        fun attempt(index: Int, refused: Boolean) {
+            if (index >= list.size) return done(null, refused)
+            OsmAnd.searchOrFail(this, list[index], -34.6037, -58.3816) { results ->
+                val r = results?.firstOrNull()
+                if (r != null) done(r.latitude to r.longitude, false)
+                else attempt(index + 1, refused || results == null)
             }
         }
+        attempt(0, false)
     }
 
     private fun showDestinos(text: String) {
