@@ -51,100 +51,48 @@ class MainActivity : Activity() {
     private val dateFormat = SimpleDateFormat("EEEE d MMM", locale)
     private val dialogTheme get() = Theme.dialogTheme(this)
 
-    /** Con el inicio sobre OsmAnd, los diálogos se muestran encima (si no, quedarían detrás). */
-    private fun AlertDialog.Builder.showHere(): AlertDialog {
-        val dialog = create()
-        if (overlay != null) dialog.window?.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-        dialog.show()
-        return dialog
-    }
+    private fun AlertDialog.Builder.showHere(): AlertDialog = show()
 
-    // ---------- Inicio con el mapa de OsmAnd ----------
-
-    private var overlay: HomeOverlay? = null
-
-    // Sin el servicio de accesibilidad el panel no sabe cuándo esconderse y tapaba otras apps
-    // (por ejemplo, Ajustes de Wi-Fi): en ese caso se usa el mapa propio.
-    private fun osmandHomeWanted() = Prefs.osmandHome(this) && NavLaunch.osmand(this) != null &&
-        android.provider.Settings.canDrawOverlays(this) && accessibilityOn()
-
-    private fun accessibilityOn(): Boolean {
-        val enabled = android.provider.Settings.Secure.getString(
-            contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        return enabled.split(':').any { it.startsWith("$packageName/") }
-    }
-
-    private var askedOverlay = false
+    // ---------- Android Auto al conectar el celular ----------
 
     /**
-     * El inicio con OsmAnd viene prendido, pero sin el permiso "Mostrar encima" no puede
-     * funcionar y quedaba el mapa viejo sin avisar. Ahora se pide.
+     * Celular enchufado al USB: se abre Open Headunit (o la app elegida para Android Auto).
+     * Un pendrive, un hub o un teclado no cuentan.
      */
-    private fun askOverlayIfMissing() {
-        if (askedOverlay || !Prefs.osmandHome(this) || NavLaunch.osmand(this) == null) return
-        if (android.provider.Settings.canDrawOverlays(this)) return
-        askedOverlay = true
-        AlertDialog.Builder(this, Theme.dialogTheme(this))
-            .setTitle(R.string.overlay_needed_title)
-            .setMessage(R.string.overlay_needed)
-            .setPositiveButton(R.string.overlay_needed_grant) { _, _ ->
-                for (i in listOf(
-                    Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")),
-                    Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
-                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))
-                )) {
-                    try {
-                        startActivity(i)
-                        break
-                    } catch (e: Exception) {
-                    }
+    private var lastAutoLaunch = -60_000L
+
+    private val usbReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (!Prefs.autoOnUsb(this@MainActivity)) return
+            @Suppress("DEPRECATION")
+            val device = intent.getParcelableExtra<android.hardware.usb.UsbDevice>(android.hardware.usb.UsbManager.EXTRA_DEVICE) ?: return
+            Diag.log("usb", "conectado %04x:%04x %s".format(device.vendorId, device.productId, device.productName ?: ""))
+            if (!looksLikePhone(device)) return
+            // Al arrancar Android Auto el celular se reconecta solo: no se vuelve a abrir.
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (now - lastAutoLaunch < 30_000) return
+            val launch = Dock.autoIntent(this@MainActivity) ?: return
+            lastAutoLaunch = now
+            // Un momento, para que el celular termine de presentarse.
+            handler.postDelayed({
+                try {
+                    startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (e: Exception) {
                 }
-            }
-            .setNegativeButton(R.string.overlay_needed_skip) { _, _ -> Prefs.setOsmandHome(this, false) }
-            .show()
-    }
-
-    /** OsmAnd adelante, con el panel del launcher encima. */
-    private fun bringOsmAnd() {
-        val o = overlay ?: return
-        val pkg = NavLaunch.osmand(this) ?: return
-        // Márgenes antes de traer OsmAnd: los aplica al volver a primer plano.
-        o.setFull(false, relayout = false)
-        o.show()
-        val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return
-        try {
-            super.startActivity(
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            )
-        } catch (e: Exception) {
-        }
-        // OsmAnd aplica los márgenes cuando su mapa ya está abierto.
-        handler.postDelayed({ overlay?.applyToOsmAnd(relayout = true) }, 1500)
-    }
-
-    /** Sin el permiso de Accesibilidad no se sabe qué app está adelante: se esconde al abrir otra desde acá. */
-    override fun startActivity(intent: Intent?) {
-        val o = overlay
-        if (o != null && intent != null) {
-            val target = intent.component?.packageName ?: intent.`package`
-            val toOsmAnd = target != null && NavLaunch.isOsmand(target)
-            val toHome = intent.component?.className == MainActivity::class.java.name
-            if (!toOsmAnd && !toHome) o.hide()
-        }
-        super.startActivity(intent)
-    }
-
-    private fun onForeground(pkg: String, cls: String?) {
-        val o = overlay ?: return
-        when {
-            NavLaunch.isOsmand(pkg) -> o.show()
-            // La pantalla invisible que reacomoda OsmAnd no cuenta.
-            pkg == packageName && cls == RelayoutActivity::class.java.name -> {}
-            pkg == packageName && cls == MainActivity::class.java.name -> o.show()
-            else -> o.hide()
+            }, 1200)
         }
     }
+
+    /**
+     * Un celular por USB se presenta como MTP/PTP (clase "imagen") o con interfaces propias del
+     * fabricante (la que usa Android Auto). Pendrives, cámaras, hubs o teclados no.
+     */
+    private fun looksLikePhone(d: android.hardware.usb.UsbDevice): Boolean =
+        (0 until d.interfaceCount).any {
+            val c = d.getInterface(it).interfaceClass
+            c == android.hardware.usb.UsbConstants.USB_CLASS_STILL_IMAGE ||
+                c == android.hardware.usb.UsbConstants.USB_CLASS_VENDOR_SPEC
+        }
 
     // ---------- Voz de OsmAnd sobre la música ----------
 
@@ -298,8 +246,10 @@ class MainActivity : Activity() {
     private fun staleStreetCheck() {
         if (!::speedLimit.isInitialized) return
         val loc = navMap.lastFix
-        val stale = loc == null || android.os.SystemClock.elapsedRealtimeNanos() - loc.elapsedRealtimeNanos > 15_000_000_000L
+        val stale = loc == null || loc.provider != android.location.LocationManager.GPS_PROVIDER ||
+            android.os.SystemClock.elapsedRealtimeNanos() - loc.elapsedRealtimeNanos > 15_000_000_000L
         if (stale) speedLimit.clear()
+        navMap.checkStale()
     }
 
     private val themeTick = object : Runnable {
@@ -327,8 +277,11 @@ class MainActivity : Activity() {
         CartoTiles.purgeOld(this)
         startedNight = Theme.isNight(this)
         setContentView(R.layout.activity_main)
+        Diag.installCrashLog(this)
+        Diag.log("inicio", "launcher ${BuildConfig.VERSION_NAME} abierto")
         ts = TsCommon(this)
         ts.connect()
+        registerReceiver(usbReceiver, IntentFilter(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED))
 
         setupMap()
         setupMusic()
@@ -352,10 +305,6 @@ class MainActivity : Activity() {
             weatherIcon.setImageResource(icon)
         }
 
-        if (osmandHomeWanted()) {
-            overlay = HomeOverlay(this).also { it.attach() }
-            Foreground.listener = { pkg, cls -> onForeground(pkg, cls) }
-        }
     }
 
     // ---------- Mapa ----------
@@ -494,7 +443,7 @@ class MainActivity : Activity() {
         val picking = pickingIndex != null
         // Sin barra de búsqueda: el destino se elige en Organic Maps; el mapa gana espacio.
         mapSearch.visibility = View.GONE
-        if (info == null || picking || overlay != null) {
+        if (info == null || picking) {
             navBanner.visibility = View.GONE
             return
         }
@@ -784,11 +733,6 @@ class MainActivity : Activity() {
     }
 
     private fun navigateTo(place: Place) {
-        // Inicio con OsmAnd: navega ahí mismo, sin cambiar de pantalla.
-        if (overlay != null && OsmAnd.navigate(this, place)) {
-            bringOsmAnd()
-            return
-        }
         // Con OsmAnd: navega directo desde tu posición (sin confirmar) y el launcher vuelve al inicio.
         val osmand = NavLaunch.osmand(this)
         if (osmand != null) {
@@ -1432,7 +1376,7 @@ class MainActivity : Activity() {
             DockConfig.SETTINGS -> startActivity(Intent(this, SettingsActivity::class.java))
             DockConfig.MUSIC -> openSource()
             // Con OsmAnd en el inicio, "Mapa" lo pone a pantalla completa.
-            DockConfig.MAPS -> overlay?.setFull(true) ?: Dock.open(this, Dock.MAPS, item.label)
+            DockConfig.MAPS -> Dock.open(this, Dock.MAPS, item.label)
             else -> Dock.open(this, item.id, item.label)
         }
     }
@@ -1499,20 +1443,7 @@ class MainActivity : Activity() {
             recreate()
             return
         }
-        // Se dio (o se quitó) el permiso "Mostrar encima", o se cambió el interruptor: cambia el modo del inicio.
-        if (osmandHomeWanted() != (overlay != null)) {
-            recreate()
-            return
-        }
-        askOverlayIfMissing()
         renderDock()
-        if (overlay != null && resumedFully) {
-            places = Places.load(this)
-            savedPlaces = places.toList()
-            renderBottomCard()
-            bringOsmAnd()
-            return
-        }
         resumedFully = true
         // Los destinos pudieron cambiar desde Ajustes (destinos.txt).
         places = Places.load(this)
@@ -1544,15 +1475,9 @@ class MainActivity : Activity() {
         Nav.listener = { runOnUiThread { renderNav() } }
         renderNav()
         renderPlaceDistances()
-        if (overlay != null) bringOsmAnd()
     }
 
     override fun onPause() {
-        // Con OsmAnd de fondo, el launcher sigue andando (música, reloj, GPS) aunque no esté adelante.
-        if (overlay != null) {
-            super.onPause()
-            return
-        }
         if (!resumedFully) {
             super.onPause()
             return
@@ -1571,22 +1496,10 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        overlay?.let {
-            it.detach()
-            Foreground.listener = null
-            if (resumedFully) {
-                handler.removeCallbacksAndMessages(null)
-                try {
-                    unregisterReceiver(volumeReceiver)
-                } catch (e: Exception) {
-                }
-                music.stop()
-                unwatchNetwork()
-                navMap.stop()
-                Nav.listener = null
-            }
+        try {
+            unregisterReceiver(usbReceiver)
+        } catch (e: Exception) {
         }
-        overlay = null
         ts.disconnect()
         cameras.release()
         super.onDestroy()

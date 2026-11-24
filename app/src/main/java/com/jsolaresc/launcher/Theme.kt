@@ -42,14 +42,16 @@ object Prefs {
     fun setSaveVisited(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("save_visited", v).apply()
 
     /** Inicio con el mapa de OsmAnd (si está instalado y con permiso de mostrarse encima). */
-    fun osmandHome(ctx: Context) = p(ctx).getBoolean("osmand_home_v2", false)
-    fun setOsmandHome(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("osmand_home_v2", v).apply()
 
     /** Volumen de la música mientras habla OsmAnd (en pasos del volumen del estéreo). */
     fun duckVolume(ctx: Context) = p(ctx).getInt("duck_volume", 2)
     fun setDuckVolume(ctx: Context, v: Int) = p(ctx).edit().putInt("duck_volume", v).apply()
 
     /** Bajar la música mientras habla la voz de OsmAnd. */
+    /** Al conectar el celular por USB, abrir la app de Android Auto (Open Headunit). */
+    fun autoOnUsb(ctx: Context) = p(ctx).getBoolean("auto_on_usb", true)
+    fun setAutoOnUsb(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("auto_on_usb", v).apply()
+
     fun pauseForVoice(ctx: Context) = p(ctx).getBoolean("pause_for_voice", true)
     fun setPauseForVoice(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("pause_for_voice", v).apply()
 

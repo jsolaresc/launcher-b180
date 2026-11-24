@@ -232,9 +232,12 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         } catch (e: Exception) {
             null
         }
-        if (last != null) onLocationChanged(last)
+        // Sin ubicación del sistema (pasa al apagar el estéreo): la última que guardó el launcher.
+        val start = last ?: savedPosition()
+        if (start != null) onLocationChanged(start)
         if (!gpsOn) showStatus(activity.getString(R.string.gps_off))
-        else if (last == null) showStatus(activity.getString(R.string.gps_searching))
+        else if (start == null) showStatus(activity.getString(R.string.gps_searching))
+        else showStatus(staleText(null))
     }
 
     fun stop() {
@@ -289,15 +292,78 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
             // Señal de los 4 mejores satélites: menos de ~25 dB suele ser antena tapada o mal ubicada.
             val best = cn0.sortedDescending().take(4)
             val signal = if (best.isEmpty()) 0 else best.average().toInt()
-            val text = if (lastFix != null && lastFix?.provider == LocationManager.NETWORK_PROVIDER)
-                activity.getString(R.string.gps_approx)
-            else activity.getString(R.string.gps_searching_sats, used, status.satelliteCount, signal)
+            val sats = activity.getString(R.string.gps_searching_sats, used, status.satelliteCount, signal)
+            Diag.gnss = "$used usados de ${status.satelliteCount} · $signal dB (sin posición)"
+            val text = when {
+                lastFix?.provider == LocationManager.NETWORK_PROVIDER -> activity.getString(R.string.gps_approx)
+                lastFix != null -> staleText(activity.getString(R.string.gps_sats_short, used, status.satelliteCount, signal))
+                else -> sats
+            }
             activity.runOnUiThread { showStatus(text) }
         }
     }
 
     private var lastGpsAt = 0L
     private var prevGps: Location? = null
+
+    // ---------- Última posición conocida ----------
+
+    private val posPrefs = activity.getSharedPreferences("last_position", Context.MODE_PRIVATE)
+    private var savedAt = 0L
+
+    /** Momento real (no el reloj del estéreo) de la posición que se muestra. */
+    private var positionAt = 0L
+
+    private fun savePosition(l: Location) {
+        val now = RealTime.now()
+        if (now - savedAt < 20_000) return
+        savedAt = now
+        posPrefs.edit()
+            .putString("lat", l.latitude.toString())
+            .putString("lon", l.longitude.toString())
+            .putLong("at", now)
+            .apply()
+    }
+
+    private fun savedPosition(): Location? {
+        val lat = posPrefs.getString("lat", null)?.toDoubleOrNull() ?: return null
+        val lon = posPrefs.getString("lon", null)?.toDoubleOrNull() ?: return null
+        return Location("saved").apply {
+            latitude = lat
+            longitude = lon
+            time = posPrefs.getLong("at", 0L)
+        }
+    }
+
+    /** ¿La flecha muestra una posición vieja (sin GPS ahora)? */
+    private fun stale(): Boolean = when (lastFix?.provider) {
+        LocationManager.NETWORK_PROVIDER -> false
+        LocationManager.GPS_PROVIDER -> System.currentTimeMillis() - lastGpsAt > 15_000
+        else -> true
+    }
+
+    /** "Última posición · hace 25 min" (+ satélites si se sabe). */
+    private fun staleText(sats: String?): String {
+        val mins = if (positionAt > 0) ((RealTime.now() - positionAt) / 60_000L).coerceAtLeast(0) else -1
+        val ago = when {
+            mins < 0 -> activity.getString(R.string.gps_last_pos)
+            mins < 1 -> activity.getString(R.string.gps_last_pos_now)
+            mins < 60 -> activity.getString(R.string.gps_last_pos_min, mins)
+            mins < 48 * 60 -> activity.getString(R.string.gps_last_pos_h, mins / 60)
+            else -> activity.getString(R.string.gps_last_pos)
+        }
+        return if (sats == null) ago else "$ago · $sats"
+    }
+
+    /** Cada segundo: si el GPS dejó de dar posición, la flecha pasa a gris. */
+    fun checkStale() {
+        if (lastFix == null) return
+        val s = stale()
+        if (s != me.stale) {
+            me.stale = s
+            map.invalidate()
+        }
+    }
 
     override fun onLocationChanged(location: Location) {
         val isGps = location.provider == LocationManager.GPS_PROVIDER
@@ -307,6 +373,7 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         // La de red solo sirve mientras el GPS no tiene posición reciente.
         if (!isGps && System.currentTimeMillis() - lastGpsAt < 10_000) return
         if (isGps && android.os.SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos < 60_000_000_000L) {
+            if (lastGpsAt == 0L) Diag.log("gps", "primera posición GPS (precisión ${location.accuracy.toInt()} m)")
             lastGpsAt = System.currentTimeMillis()
             // Algunos GPS no informan velocidad: se calcula con la posición anterior.
             val prev = prevGps
@@ -317,6 +384,15 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
             prevGps = location
         }
         lastFix = location
+        val fresh = isGps && lastGpsAt != 0L && System.currentTimeMillis() - lastGpsAt < 1000
+        if (fresh) {
+            positionAt = RealTime.now()
+            savePosition(location)
+        } else if (positionAt == 0L) {
+            // Posición vieja: su hora (la del GPS ya corregida, o la guardada).
+            positionAt = if (location.provider == "saved") location.time else location.time.takeIf { it > GPS_MIN_VALID } ?: 0L
+        }
+        me.stale = !fresh && location.provider != LocationManager.NETWORK_PROVIDER
         me.point = GeoPoint(location.latitude, location.longitude)
         // El rumbo del GPS solo es confiable en movimiento.
         if (location.hasBearing() && location.hasSpeed() && location.speed > 1.5f) me.bearing = location.bearing
@@ -354,6 +430,11 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
         var point: GeoPoint? = null
         var bearing: Float? = null
         var street: String? = null
+        /** Sin GPS ahora: la flecha en gris (es la última posición conocida). */
+        var stale = false
+
+        private val grey = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#8A9099") }
+        private val greyHalo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#338A9099") }
 
         private val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ctx.getColor(R.color.floating) }
         private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -376,7 +457,7 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
             val x = screen.x.toFloat()
             val y = screen.y.toFloat()
 
-            canvas.drawCircle(x, y, 22f * d, halo)
+            canvas.drawCircle(x, y, 22f * d, if (stale) greyHalo else halo)
 
             // Nombre de la calle, en una píldora debajo de la flecha (derecha aunque gire el mapa).
             street?.let { name ->
@@ -394,7 +475,7 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
 
             val b = bearing
             if (b == null) {
-                canvas.drawCircle(x, y, 8f * d, dot)
+                canvas.drawCircle(x, y, 8f * d, if (stale) grey else dot)
                 return
             }
             canvas.save()
@@ -405,7 +486,7 @@ class NavMap(private val activity: Activity, root: View) : LocationListener {
             arrow.lineTo(x, y + 3.5f * d)
             arrow.lineTo(x - 7f * d, y + 7f * d)
             arrow.close()
-            canvas.drawPath(arrow, dot)
+            canvas.drawPath(arrow, if (stale) grey else dot)
             canvas.restore()
         }
     }

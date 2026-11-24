@@ -50,6 +50,7 @@ class SettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Diag.installCrashLog(this)
         NavMap.configure(this)
         RealTime.installTlsFix()
         setContentView(R.layout.activity_settings)
@@ -65,6 +66,8 @@ class SettingsActivity : Activity() {
         findViewById<View>(R.id.stereo_settings).setOnClickListener { openStereoSettings() }
         setupOsmandHome()
         setupDockCard()
+        setupTools()
+        setupPlacesCard()
 
         // Arranque en frío del GPS: borra los datos viejos (por ejemplo, de cuando la fecha estaba en 2007).
         findViewById<View>(R.id.gps_reset).setOnClickListener {
@@ -98,38 +101,12 @@ class SettingsActivity : Activity() {
 
     private val GMAPS = "com.google.android.apps.maps"
 
-    /** Inicio con el mapa de OsmAnd: interruptor y los dos permisos que necesita. */
+    /** Voz de OsmAnd sobre la música. */
     private fun setupOsmandHome() {
-        val home = findViewById<Switch>(R.id.osmand_home)
-        home.isChecked = Prefs.osmandHome(this)
-        home.setOnCheckedChangeListener { _, on ->
-            Prefs.setOsmandHome(this, on)
-            if (on && !android.provider.Settings.canDrawOverlays(this)) askOverlay()
-        }
-        findViewById<View>(R.id.osmand_home_row).setOnClickListener { home.toggle() }
-        findViewById<View>(R.id.perm_overlay).setOnClickListener { askOverlay() }
-        findViewById<View>(R.id.perm_access).setOnClickListener {
-            openFirst(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }
         val voice = findViewById<Switch>(R.id.pause_voice)
         voice.isChecked = Prefs.pauseForVoice(this)
         voice.setOnCheckedChangeListener { _, on -> Prefs.setPauseForVoice(this, on) }
         findViewById<View>(R.id.pause_voice_row).setOnClickListener { voice.toggle() }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Estado del permiso a la vista: sin él, el inicio usa el mapa del launcher.
-        val ok = android.provider.Settings.canDrawOverlays(this)
-        findViewById<TextView>(R.id.perm_overlay).text =
-            getString(if (ok) R.string.perm_overlay_ok else R.string.perm_overlay_missing)
-    }
-
-    private fun askOverlay() {
-        openFirst(
-            Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")),
-            Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-        )
     }
 
     /** Abre la primera pantalla de ajustes que exista; si ninguna, la ficha de la app. */
@@ -403,6 +380,254 @@ class SettingsActivity : Activity() {
             .setNegativeButton(R.string.offline_cancel, null)
             .show()
     }
+
+    // ---------- Equipo: Android Auto por USB, actualización y reporte ----------
+
+    private lateinit var equipoStatus: TextView
+
+    private fun equipoMessage(text: String) {
+        equipoStatus.visibility = View.VISIBLE
+        equipoStatus.text = text
+    }
+
+    private fun setupTools() {
+        equipoStatus = findViewById(R.id.equipo_status)
+        val auto = findViewById<Switch>(R.id.auto_usb)
+        auto.isChecked = Prefs.autoOnUsb(this)
+        auto.setOnCheckedChangeListener { _, on -> Prefs.setAutoOnUsb(this, on) }
+        findViewById<View>(R.id.auto_usb_row).setOnClickListener { auto.toggle() }
+
+        findViewById<View>(R.id.check_update).setOnClickListener {
+            // Android pide una vez permiso para que el launcher instale su propia versión nueva.
+            if (!packageManager.canRequestPackageInstalls()) {
+                openFirst(
+                    Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:$packageName"))
+                )
+                return@setOnClickListener
+            }
+            Updater.run(this) { equipoMessage(it) }
+        }
+
+        findViewById<View>(R.id.make_report).setOnClickListener {
+            equipoMessage(getString(R.string.report_making))
+            findOnUsb { false } // completa lastRoots (dónde hay pendrives)
+            val roots = lastRoots
+            worker.execute {
+                val text = try {
+                    Report.build(this, roots)
+                } catch (e: Exception) {
+                    "Error armando el reporte: $e"
+                }
+                @Suppress("DEPRECATION")
+                val internal = android.os.Environment.getExternalStorageDirectory().path
+                val usb = roots.filter {
+                    it.path.startsWith("/storage/") && !it.path.startsWith(internal) &&
+                        !it.path.startsWith("/storage/emulated") && !it.path.startsWith("/storage/self") && it.canWrite()
+                }
+                val saved = Report.save(this, text, usb)
+                main.post {
+                    equipoMessage(
+                        if (saved.isEmpty()) getString(R.string.report_failed, "sin lugar donde escribir")
+                        else getString(R.string.report_done, saved.joinToString("\n"))
+                    )
+                }
+            }
+        }
+    }
+
+    // ---------- Destinos rápidos: editar desde Ajustes ----------
+
+    private lateinit var placesList: LinearLayout
+    private var placesEdit: MutableList<Place> = mutableListOf()
+
+    private fun setupPlacesCard() {
+        placesList = findViewById(R.id.places_list)
+        findViewById<View>(R.id.places_add).setOnClickListener { askPlace(null) }
+    }
+
+    private fun renderPlacesList() {
+        if (!::placesList.isInitialized) return
+        placesEdit = Places.load(this)
+        val d = resources.displayMetrics.density
+        placesList.removeAllViews()
+        if (placesEdit.isEmpty()) {
+            placesList.addView(TextView(this).apply {
+                setText(R.string.places_empty)
+                setTextColor(getColor(R.color.muted))
+                textSize = 10f
+                setPadding(0, (4 * d).toInt(), 0, (4 * d).toInt())
+            })
+            return
+        }
+        placesEdit.forEachIndexed { index, place ->
+            val row = LinearLayout(this)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER_VERTICAL
+            row.setPadding(0, (3 * d).toInt(), 0, (3 * d).toInt())
+            row.isClickable = true
+            row.setOnClickListener { editPlace(index) }
+            val icon = android.widget.ImageView(this)
+            icon.setImageResource(place.iconRes)
+            icon.alpha = if (index < Places.VISIBLE) 1f else 0.55f
+            row.addView(icon, LinearLayout.LayoutParams((18 * d).toInt(), (18 * d).toInt()))
+            val name = TextView(this)
+            name.text = if (index < Places.VISIBLE) place.name else place.name + "  ·  " + getString(R.string.places_more_tag)
+            name.setTextColor(getColor(R.color.text))
+            name.textSize = 11f
+            name.setPadding((10 * d).toInt(), 0, 0, 0)
+            row.addView(name, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            fun arrow(res: Int, delta: Int) {
+                val b = android.widget.ImageButton(this)
+                b.setImageResource(res)
+                b.rotation = 90f
+                b.setBackgroundResource(R.drawable.bg_option)
+                b.scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+                b.setPadding((7 * d).toInt(), (7 * d).toInt(), (7 * d).toInt(), (7 * d).toInt())
+                val target = index + delta
+                b.isEnabled = target in placesEdit.indices
+                b.alpha = if (b.isEnabled) 1f else 0.3f
+                b.contentDescription = if (delta < 0) "Subir" else "Bajar"
+                b.setOnClickListener {
+                    java.util.Collections.swap(placesEdit, index, target)
+                    commitPlaces()
+                }
+                val lp = LinearLayout.LayoutParams((32 * d).toInt(), (30 * d).toInt())
+                lp.marginStart = (5 * d).toInt()
+                row.addView(b, lp)
+            }
+            arrow(R.drawable.ic_prev, -1)
+            arrow(R.drawable.ic_next, 1)
+            placesList.addView(row)
+        }
+    }
+
+    private fun commitPlaces() {
+        val old = Places.load(this)
+        Places.save(this, placesEdit)
+        OsmAnd.syncFavorites(this, old, placesEdit)
+        renderPlacesList()
+    }
+
+    private fun editPlace(index: Int) {
+        val place = placesEdit.getOrNull(index) ?: return
+        val options = arrayOf(getString(R.string.places_rename), getString(R.string.places_readdress), getString(R.string.places_delete))
+        AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(place.name)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> askText(getString(R.string.places_rename), place.name) { text ->
+                        placesEdit[index] = place.copy(name = text)
+                        commitPlaces()
+                    }
+                    1 -> askPlace(index)
+                    2 -> {
+                        placesEdit.removeAt(index)
+                        commitPlaces()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.offline_cancel, null)
+            .show()
+    }
+
+    private fun askText(title: String, value: String, onOk: (String) -> Unit) {
+        val input = android.widget.EditText(this)
+        input.setText(value)
+        input.setSelection(value.length)
+        input.setSingleLine()
+        input.setTextColor(getColor(R.color.text))
+        val d = resources.displayMetrics.density
+        val box = android.widget.FrameLayout(this)
+        box.setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
+        box.addView(input)
+        AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(title)
+            .setView(box)
+            .setPositiveButton(R.string.dock_ok) { _, _ ->
+                val t = input.text.toString().trim()
+                if (t.isNotEmpty()) onOk(t)
+            }
+            .setNegativeButton(R.string.offline_cancel, null)
+            .show()
+    }
+
+    /** Nuevo destino (index null) o cambiar la dirección de uno: nombre + dirección, buscada en OsmAnd. */
+    private fun askPlace(index: Int?) {
+        if (NavLaunch.osmand(this) == null) {
+            Toast.makeText(this, R.string.places_need_osmand, Toast.LENGTH_LONG).show()
+            return
+        }
+        val current = index?.let { placesEdit.getOrNull(it) }
+        val d = resources.displayMetrics.density
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
+        val name = android.widget.EditText(this).apply {
+            hint = getString(R.string.places_name)
+            setText(current?.name ?: "")
+            setSingleLine()
+            setTextColor(getColor(R.color.text))
+            setHintTextColor(getColor(R.color.muted))
+        }
+        val address = android.widget.EditText(this).apply {
+            hint = getString(R.string.places_address)
+            setSingleLine()
+            setTextColor(getColor(R.color.text))
+            setHintTextColor(getColor(R.color.muted))
+        }
+        if (current == null) box.addView(name)
+        box.addView(address)
+        AlertDialog.Builder(this, Theme.dialogTheme(this))
+            .setTitle(current?.name ?: getString(R.string.places_add))
+            .setView(box)
+            .setPositiveButton(R.string.places_search) { _, _ ->
+                val n = (if (current == null) name.text.toString() else current.name).trim()
+                val a = address.text.toString().trim()
+                if (n.isEmpty() || a.isEmpty()) return@setPositiveButton
+                Toast.makeText(this, R.string.places_searching, Toast.LENGTH_SHORT).show()
+                findPlace(a) { results ->
+                    if (results.isEmpty()) {
+                        Toast.makeText(this, R.string.places_not_found, Toast.LENGTH_LONG).show()
+                        return@findPlace
+                    }
+                    val labels = results.map { r ->
+                        listOfNotNull(r.localName, r.localTypeName?.takeIf { it.isNotBlank() }).joinToString(" · ")
+                    }.toTypedArray()
+                    AlertDialog.Builder(this, Theme.dialogTheme(this))
+                        .setTitle(R.string.places_choose)
+                        .setItems(labels) { _, which ->
+                            val r = results[which]
+                            val p = Place(n, r.latitude, r.longitude)
+                            if (index == null) placesEdit.add(p) else placesEdit[index] = p
+                            commitPlaces()
+                        }
+                        .setNegativeButton(R.string.offline_cancel, null)
+                        .show()
+                }
+            }
+            .setNegativeButton(R.string.offline_cancel, null)
+            .show()
+    }
+
+    /** Dirección completa y, si no aparece, solo calle y altura. */
+    private fun findPlace(address: String, done: (List<net.osmand.aidlapi.search.SearchResult>) -> Unit) {
+        val here = Places.load(this).firstOrNull()
+        val lat = here?.lat ?: -34.6037
+        val lon = here?.lon ?: -58.3816
+        OsmAnd.search(this, address, lat, lon) { results ->
+            if (results.isNotEmpty()) return@search done(results)
+            val short = address.substringBefore(",").trim()
+            if (short == address) return@search done(emptyList())
+            OsmAnd.search(this, short, lat, lon) { done(it) }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Los destinos pueden haber cambiado desde el inicio o desde destinos.txt.
+        renderPlacesList()
+    }
+
 
     private fun setupTheme() {
         val options = mapOf(
@@ -811,6 +1036,7 @@ class SettingsActivity : Activity() {
             return
         }
         showDestinos(getString(R.string.destinos_searching, lines.size))
+        Diag.log("destinos", "leído ${file.name}: ${lines.size} renglones")
         val old = Places.load(this)
         val found = arrayOfNulls<Place>(lines.size)
         var refused = false
@@ -823,6 +1049,7 @@ class SettingsActivity : Activity() {
             }
             Places.save(this, list)
             OsmAnd.syncFavorites(this, old, list)
+            renderPlacesList()
             val missing = lines.indices.filter { found[it] == null }.map { lines[it].substringBefore(";").trim() }
             showDestinos(
                 if (missing.isEmpty()) getString(R.string.destinos_done, list.size)

@@ -64,6 +64,7 @@ object OsmAnd {
         if (bound) return
         val pkg = NavLaunch.osmand(ctx) ?: return
         appCtx = ctx.applicationContext
+        Diag.log("osmand", "conectando con $pkg")
         bound = try {
             ctx.applicationContext.bindService(
                 Intent(SERVICE).setPackage(pkg), connection, Context.BIND_AUTO_CREATE
@@ -149,7 +150,10 @@ object OsmAnd {
             }
         }
         // Si OsmAnd no contesta, se sigue con la próxima.
-        main.postDelayed({ finish(emptyList()) }, 15_000)
+        main.postDelayed({
+            if (!done) Diag.log("osmand", "sin respuesta: \"${job.query}\"")
+            finish(emptyList())
+        }, 15_000)
         withApi(ctx) { a ->
             val ok = a.search(SearchParams(job.query, SearchParams.SEARCH_TYPE_ADDRESS, job.lat, job.lon, 3, 5), object : Callback() {
                 override fun onSearchComplete(resultSet: MutableList<SearchResult>?) {
@@ -157,7 +161,10 @@ object OsmAnd {
                     main.post { finish(list) }
                 }
             })
-            if (!ok) main.post { finish(null) }
+            if (!ok) {
+                Diag.log("osmand", "rechazó la búsqueda \"${job.query}\"")
+                main.post { finish(null) }
+            }
         }
     }
 

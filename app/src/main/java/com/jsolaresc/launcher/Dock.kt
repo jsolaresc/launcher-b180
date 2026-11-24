@@ -57,6 +57,14 @@ object Dock {
             .getString(key, null)
             ?.let { ComponentName.unflattenFromString(it) }
 
+    /** La app de Android Auto que se abriría (la elegida o Open Headunit / Headunit Reloaded), o null. */
+    fun autoIntent(ctx: Context): Intent? {
+        saved(ctx, AUTO)?.let { c ->
+            return Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(c)
+        }
+        return defaultIntent(ctx, AUTO)
+    }
+
     fun save(ctx: Context, key: String, component: ComponentName) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
